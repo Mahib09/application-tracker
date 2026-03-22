@@ -7,32 +7,41 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test": "vitest",
+    "test:run": "vitest run"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.3.0",
     "@prisma/client": "^7.3.0",
     "dotenv": "^17.2.3",
     "next": "16.1.6",
+    "next-auth": "^5.0.0-beta.30",
     "pg": "^8.17.2",
     "react": "19.2.3",
     "react-dom": "19.2.3"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.1",
     "@types/node": "^20.19.30",
     "@types/pg": "^8.16.0",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@vitejs/plugin-react": "^6.0.1",
     "eslint": "^9",
     "eslint-config-next": "16.1.6",
+    "jsdom": "^29.0.1",
     "prisma": "^7.3.0",
     "tailwindcss": "^4",
     "ts-node": "^10.9.2",
     "tsx": "^4.21.0",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.0"
   },
-  "description": "This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).",
+  "description": "This is a Next.js project bootstrapped with create-next-app.",
   "main": "index.js",
   "repository": {
     "type": "git",
