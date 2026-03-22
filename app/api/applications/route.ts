@@ -1,50 +1,32 @@
-import {
-  createApplication,
-  listApplications,
-} from "@/server/services/application.service";
-import { NextResponse } from "next/server";
+import { auth } from "@/auth"
+import { createApplication, listApplications } from "@/server/services/application.service"
+import { NextResponse } from "next/server"
 
-export async function GET(req: Request) {
+export async function GET() {
+  const session = await auth()
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   try {
-    const { searchParams } = new URL(req.url);
-    const userId = searchParams.get("userId");
-    if (!userId) {
-      return NextResponse.json(
-        { error: "userId is Required" },
-        { status: 400 },
-      );
-    }
-
-    const application = await listApplications(userId);
-    return NextResponse.json(application, { status: 201 });
+    const applications = await listApplications(session.user.id)
+    return NextResponse.json(applications, { status: 200 })
   } catch (error) {
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Unknown ERROR" },
+      { error: error instanceof Error ? error.message : "Unknown error" },
       { status: 400 },
-    );
+    )
   }
 }
 
 export async function POST(req: Request) {
+  const session = await auth()
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   try {
-    const body = await req.json();
-    const { userId, ...input } = body;
-
-    if (!userId) {
-      return NextResponse.json(
-        { error: "userId is required" },
-        { status: 400 },
-      );
-    }
-
-    const application = await createApplication(userId, input);
-    return NextResponse.json(application, { status: 201 });
+    const input = await req.json()
+    const application = await createApplication(session.user.id, input)
+    return NextResponse.json(application, { status: 201 })
   } catch (error) {
     return NextResponse.json(
-      {
-        error: error instanceof Error ? error.message : "Unknown Error",
-      },
+      { error: error instanceof Error ? error.message : "Unknown error" },
       { status: 400 },
-    );
+    )
   }
 }
