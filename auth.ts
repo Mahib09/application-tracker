@@ -1,23 +1,10 @@
 import NextAuth from "next-auth"
-import Google from "next-auth/providers/google"
+import { authConfig } from "./auth.config"
 import { prisma } from "@/server/lib/prisma"
 import { handleSignIn } from "@/server/services/auth.service"
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
-  providers: [
-    Google({
-      clientId: process.env.AUTH_GOOGLE_ID,
-      clientSecret: process.env.AUTH_GOOGLE_SECRET,
-      authorization: {
-        params: {
-          scope: "openid email profile https://www.googleapis.com/auth/gmail.readonly",
-          access_type: "offline",
-          prompt: "consent", // Always request refresh_token
-        },
-      },
-    }),
-  ],
-  session: { strategy: "jwt" },
+  ...authConfig,
   callbacks: {
     async signIn({ user, account }) {
       if (account?.provider !== "google") return false

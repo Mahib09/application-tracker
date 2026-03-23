@@ -1,5 +1,10 @@
-import { auth } from "./auth"
+import NextAuth from "next-auth"
+import { authConfig } from "./auth.config"
 import { NextResponse } from "next/server"
+
+// proxy.ts is the Next.js 16 replacement for middleware.ts.
+// Must only import edge-compatible modules — no Prisma, no Node.js built-ins.
+const { auth } = NextAuth(authConfig)
 
 export default auth((req) => {
   const isAuthenticated = !!req.auth
