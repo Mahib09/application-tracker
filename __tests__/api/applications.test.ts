@@ -1,12 +1,12 @@
 import { describe, it, expect, vi } from "vitest"
 
-vi.mock("@/auth", () => ({ auth: vi.fn() }))
+vi.mock("@/server/auth", () => ({ auth: vi.fn() }))
 vi.mock("@/server/services/application.service", () => ({
   listApplications: vi.fn().mockResolvedValue([]),
   createApplication: vi.fn().mockResolvedValue({ id: "app-1" }),
 }))
 
-import { auth } from "@/auth"
+import { auth } from "@/server/auth"
 import { GET, POST } from "@/app/api/applications/route"
 
 describe("GET /api/applications", () => {

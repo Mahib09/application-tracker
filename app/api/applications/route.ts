@@ -1,4 +1,4 @@
-import { auth } from "@/auth"
+import { auth } from "@/server/auth"
 import { createApplication, listApplications } from "@/server/services/application.service"
 import { NextResponse } from "next/server"
 

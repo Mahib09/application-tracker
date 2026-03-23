@@ -1,5 +1,5 @@
 import NextAuth from "next-auth"
-import { authConfig } from "./auth.config"
+import { authConfig } from "./server/auth.config"
 import { NextResponse } from "next/server"
 
 // proxy.ts is the Next.js 16 replacement for middleware.ts.
