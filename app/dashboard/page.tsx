@@ -1,4 +1,4 @@
-import { auth } from "@/server/auth"
+import { auth, signOut } from "@/server/auth"
 import { redirect } from "next/navigation"
 
 export default async function DashboardPage() {
@@ -9,6 +9,14 @@ export default async function DashboardPage() {
       <h1 className="text-xl font-semibold">Dashboard</h1>
       <p className="text-gray-500 mt-1">Welcome, {session.user.name}</p>
       <p className="text-xs text-gray-400 mt-1">User ID: {session.user.id}</p>
+      <form action={async () => {
+        "use server"
+        await signOut({ redirectTo: "/login" })
+      }}>
+        <button type="submit" className="mt-4 text-sm text-red-500 hover:underline">
+          Sign out
+        </button>
+      </form>
     </main>
   )
 }
