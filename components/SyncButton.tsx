@@ -1,0 +1,83 @@
+"use client"
+import { useEffect, useState, useRef } from "react"
+import { useRouter } from "next/navigation"
+import { Button } from "@/components/ui/button"
+
+interface Props {
+  lastSyncedAt: Date | null
+  cooldownMs: number
+}
+
+function relativeTime(date: Date): string {
+  const m = Math.floor((Date.now() - date.getTime()) / 60_000)
+  return m < 1 ? "just now" : m === 1 ? "1 min ago" : `${m} min ago`
+}
+
+function countdown(ms: number): string {
+  const s = Math.ceil(ms / 1000)
+  return `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, "0")}`
+}
+
+export default function SyncButton({ lastSyncedAt, cooldownMs: initialCooldown }: Props) {
+  const router = useRouter()
+  const [syncing, setSyncing] = useState(false)
+  const [cooldownMs, setCooldownMs] = useState(initialCooldown)
+  const [lastSynced, setLastSynced] = useState<Date | null>(lastSyncedAt)
+  const [message, setMessage] = useState<string | null>(null)
+  const mounted = useRef(false)
+
+  useEffect(() => {
+    if (cooldownMs <= 0) return
+    const t = setInterval(
+      () => setCooldownMs((ms) => (ms <= 1000 ? (clearInterval(t), 0) : ms - 1000)),
+      1000,
+    )
+    return () => clearInterval(t)
+  }, [cooldownMs])
+
+  const doSync = async () => {
+    setSyncing(true)
+    setMessage(null)
+    try {
+      const res = await fetch("/api/sync", { method: "POST" })
+      const data = await res.json()
+      if (data.skipped) {
+        setCooldownMs(data.cooldownMs)
+      } else {
+        setLastSynced(new Date())
+        setCooldownMs(0)
+        setMessage(`Synced ${data.synced} new application${data.synced !== 1 ? "s" : ""}`)
+        router.refresh()
+      }
+    } catch {
+      setMessage("Sync failed — check connection")
+    } finally {
+      setSyncing(false)
+    }
+  }
+
+  // Auto-sync once on mount if not in cooldown
+  useEffect(() => {
+    if (!mounted.current && cooldownMs === 0) {
+      mounted.current = true
+      doSync()
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  return (
+    <div className="flex items-center gap-4 mb-6">
+      <Button
+        onClick={doSync}
+        disabled={syncing || cooldownMs > 0}
+        variant="default"
+        size="sm"
+      >
+        {syncing ? "Syncing…" : cooldownMs > 0 ? `Available in ${countdown(cooldownMs)}` : "Sync Now"}
+      </Button>
+      <span className="text-sm text-slate-500">
+        {lastSynced ? `Last synced ${relativeTime(lastSynced)}` : "Never synced"}
+        {message && <span className="ml-2 text-emerald-600">{message}</span>}
+      </span>
+    </div>
+  )
+}
