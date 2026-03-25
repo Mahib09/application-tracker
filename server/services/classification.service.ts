@@ -158,24 +158,25 @@ ${JSON.stringify(batch.map((e) => ({ messageId: e.messageId, subject: e.subject,
   return results
 }
 
-// ─── Main pipeline ───────────────────────────────────────────────────────────
+// ─── Stage 1: Regex (synchronous, no external deps) ─────────────────────────
 
-export async function classifyBatch(
-  emails: EmailRaw[],
-  gmailClient: OAuth2Client
-): Promise<ClassificationResult[]> {
-  const results: ClassificationResult[] = []
-  const stage2Queue: EmailInput[] = []
+/** Classifies emails using regex only. Returns classified results immediately
+ *  and the emails that need AI (Stage 2+). */
+export function classifyStage1(emails: EmailRaw[]): {
+  classified: ClassificationResult[]
+  unclassified: EmailInput[]
+} {
+  const classified: ClassificationResult[] = []
+  const unclassified: EmailInput[] = []
 
-  // Stage 1: Regex
   for (const email of emails) {
     const status = classifyWithRegex(email.subject, email.snippet)
     const extracted = extractCompanyAndRole(email.subject)
 
     if (status && extracted) {
-      results.push({ ...extracted, messageId: email.messageId, status, date: email.date })
+      classified.push({ ...extracted, messageId: email.messageId, status, date: email.date })
     } else {
-      stage2Queue.push({
+      unclassified.push({
         messageId: email.messageId,
         subject: email.subject,
         text: email.snippet,
@@ -184,15 +185,43 @@ export async function classifyBatch(
     }
   }
 
-  if (stage2Queue.length === 0) return results
+  return { classified, unclassified }
+}
+
+// ─── Stage 2+: AI (gracefully degrades to NEEDS_REVIEW if unavailable) ───────
+
+/** Runs Stage 2 (AI on snippet) and Stage 3 (AI on full body) for emails that
+ *  Stage 1 could not classify. Falls back to NEEDS_REVIEW if AI is unavailable. */
+export async function classifyStage2Plus(
+  emails: EmailInput[],
+  gmailClient: OAuth2Client
+): Promise<ClassificationResult[]> {
+  if (emails.length === 0) return []
 
   // Stage 2: AI on snippet
-  const stage2Results = await classifyWithAI(stage2Queue)
+  let stage2Results: ClassificationResult[]
+  try {
+    stage2Results = await classifyWithAI(emails)
+  } catch {
+    // AI unavailable — mark all as NEEDS_REVIEW with best-effort extraction
+    return emails.map((e) => {
+      const extracted = extractCompanyAndRole(e.subject)
+      return {
+        messageId: e.messageId,
+        company: extracted?.company ?? "Unknown",
+        roleTitle: extracted?.roleTitle ?? "Unknown Role",
+        status: "NEEDS_REVIEW",
+        date: e.date,
+      }
+    })
+  }
+
+  const results: ClassificationResult[] = []
   const stage3Queue: Array<{ email: EmailInput; partial: ClassificationResult }> = []
 
   for (const res of stage2Results) {
     if (res.status === "NEEDS_REVIEW" || !res.company || !res.roleTitle) {
-      const original = stage2Queue.find((e) => e.messageId === res.messageId)!
+      const original = emails.find((e) => e.messageId === res.messageId)!
       stage3Queue.push({ email: original, partial: res })
     } else {
       results.push(res)
@@ -213,8 +242,30 @@ export async function classifyBatch(
     })
   }
 
-  const stage3Results = await classifyWithAI(stage3Inputs)
-  results.push(...stage3Results)
+  let stage3Results: ClassificationResult[]
+  try {
+    stage3Results = await classifyWithAI(stage3Inputs)
+  } catch {
+    stage3Results = stage3Queue.map(({ email, partial }) => ({
+      messageId: email.messageId,
+      company: partial.company || extractCompanyAndRole(email.subject)?.company || "Unknown",
+      roleTitle: partial.roleTitle || extractCompanyAndRole(email.subject)?.roleTitle || "Unknown Role",
+      status: "NEEDS_REVIEW",
+      date: email.date,
+    }))
+  }
 
+  results.push(...stage3Results)
   return results
+}
+
+// ─── Convenience wrapper (kept for backward compatibility) ────────────────────
+
+export async function classifyBatch(
+  emails: EmailRaw[],
+  gmailClient: OAuth2Client
+): Promise<ClassificationResult[]> {
+  const { classified, unclassified } = classifyStage1(emails)
+  const stage2Results = await classifyStage2Plus(unclassified, gmailClient)
+  return [...classified, ...stage2Results]
 }

@@ -1,6 +1,6 @@
 import { prisma } from "@/server/lib/prisma"
 import { getGmailClient, fetchEmailsSince } from "@/server/services/gmail.service"
-import { classifyBatch } from "@/server/services/classification.service"
+import { classifyStage1, classifyStage2Plus, type ClassificationResult } from "@/server/services/classification.service"
 
 export interface SyncResult {
   synced: number
@@ -35,6 +35,40 @@ function shouldUpgradeStatus(existing: string, incoming: string): boolean {
   return (STATUS_PRIORITY[incoming] ?? -1) > (STATUS_PRIORITY[existing] ?? -1)
 }
 
+// ─── Upsert helper ───────────────────────────────────────────────────────────
+
+async function upsertResult(
+  userId: string,
+  result: ClassificationResult,
+): Promise<"created" | "updated" | "skipped"> {
+  const existing = await prisma.application.findFirst({
+    where: { userId, company: result.company, roleTitle: result.roleTitle },
+  })
+
+  if (existing) {
+    if (shouldUpgradeStatus(existing.status as string, result.status)) {
+      await prisma.application.update({
+        where: { id: existing.id },
+        data: { status: result.status as any },
+      })
+      return "updated"
+    }
+    return "skipped"
+  }
+
+  await prisma.application.create({
+    data: {
+      userId,
+      company: result.company,
+      roleTitle: result.roleTitle,
+      status: result.status as any,
+      source: "GMAIL" as any,
+      appliedAt: result.date,
+    },
+  })
+  return "created"
+}
+
 // ─── Main sync ───────────────────────────────────────────────────────────────
 
 export async function syncApplications(userId: string): Promise<SyncResult> {
@@ -63,45 +97,29 @@ export async function syncApplications(userId: string): Promise<SyncResult> {
     // 3. Refresh token once at sync start
     const gmailClient = await getGmailClient(userId)
 
-    // 4. Fetch emails since last sync
-    const emails = await fetchEmailsSince(
-      gmailClient,
-      lastSyncedAt ?? undefined
-    )
-
-    // 5. Classify via 3-stage pipeline
-    const classified = await classifyBatch(emails, gmailClient)
+    // 4. Fetch emails — never look back more than 3 months
+    const THREE_MONTHS_MS = 90 * 24 * 60 * 60 * 1000
+    const threeMonthsAgo = new Date(Date.now() - THREE_MONTHS_MS)
+    const fetchSince = lastSyncedAt && lastSyncedAt > threeMonthsAgo ? lastSyncedAt : threeMonthsAgo
+    const emails = await fetchEmailsSince(gmailClient, fetchSince)
 
     let synced = 0
     let updated = 0
 
-    // 6. Upsert applications
-    for (const result of classified) {
-      const existing = await prisma.application.findFirst({
-        where: { userId, company: result.company, roleTitle: result.roleTitle },
-      })
+    // 5. Stage 1: regex classify — persist immediately, no AI dependency
+    const { classified: stage1Results, unclassified } = classifyStage1(emails)
+    for (const result of stage1Results) {
+      const r = await upsertResult(userId, result)
+      if (r === "created") synced++
+      else if (r === "updated") updated++
+    }
 
-      if (existing) {
-        if (shouldUpgradeStatus(existing.status as string, result.status)) {
-          await prisma.application.update({
-            where: { id: existing.id },
-            data: { status: result.status as any },
-          })
-          updated++
-        }
-      } else {
-        await prisma.application.create({
-          data: {
-            userId,
-            company: result.company,
-            roleTitle: result.roleTitle,
-            status: result.status as any,
-            source: "GMAIL" as any,
-            appliedAt: result.date,
-          },
-        })
-        synced++
-      }
+    // 6. Stage 2+: AI classify remaining — persist as results arrive
+    const stage2Results = await classifyStage2Plus(unclassified, gmailClient)
+    for (const result of stage2Results) {
+      const r = await upsertResult(userId, result)
+      if (r === "created") synced++
+      else if (r === "updated") updated++
     }
 
     // 7. GHOSTED sweep — runs after new emails processed

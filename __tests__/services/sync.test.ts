@@ -13,12 +13,13 @@ vi.mock("@/server/services/gmail.service", () => ({
 }))
 
 vi.mock("@/server/services/classification.service", () => ({
-  classifyBatch: vi.fn(),
+  classifyStage1: vi.fn(),
+  classifyStage2Plus: vi.fn(),
 }))
 
 import { prisma } from "@/server/lib/prisma"
 import { getGmailClient, fetchEmailsSince } from "@/server/services/gmail.service"
-import { classifyBatch } from "@/server/services/classification.service"
+import { classifyStage1, classifyStage2Plus } from "@/server/services/classification.service"
 
 const MOCK_CLIENT = { token: "mock-oauth-client" } as any
 const NOW = new Date("2025-03-24T12:00:00Z")
@@ -28,7 +29,8 @@ beforeEach(() => {
   vi.setSystemTime(NOW)
   vi.mocked(getGmailClient).mockResolvedValue(MOCK_CLIENT)
   vi.mocked(fetchEmailsSince).mockResolvedValue([])
-  vi.mocked(classifyBatch).mockResolvedValue([])
+  vi.mocked(classifyStage1).mockReturnValue({ classified: [], unclassified: [] })
+  vi.mocked(classifyStage2Plus).mockResolvedValue([])
   vi.mocked(prisma.syncState.upsert).mockResolvedValue({} as any)
   vi.mocked(prisma.application.updateMany).mockResolvedValue({ count: 0 } as any)
 })
@@ -85,10 +87,13 @@ describe("syncApplications — cooldown", () => {
 describe("syncApplications — token refresh", () => {
   it("calls getGmailClient once at the start, not per email", async () => {
     vi.mocked(prisma.syncState.findUnique).mockResolvedValue(null)
-    vi.mocked(classifyBatch).mockResolvedValue([
-      { messageId: "m1", company: "Acme", roleTitle: "Engineer", status: "APPLIED", date: NOW },
-      { messageId: "m2", company: "Beta", roleTitle: "Designer", status: "INTERVIEW", date: NOW },
-    ])
+    vi.mocked(classifyStage1).mockReturnValue({
+      classified: [
+        { messageId: "m1", company: "Acme", roleTitle: "Engineer", status: "APPLIED", date: NOW },
+        { messageId: "m2", company: "Beta", roleTitle: "Designer", status: "INTERVIEW", date: NOW },
+      ],
+      unclassified: [],
+    })
     vi.mocked(prisma.application.findFirst).mockResolvedValue(null)
     vi.mocked(prisma.application.create).mockResolvedValue({} as any)
 
@@ -108,9 +113,10 @@ describe("syncApplications — application upsert", () => {
   })
 
   it("creates a new application when no existing record matches", async () => {
-    vi.mocked(classifyBatch).mockResolvedValue([
-      { messageId: "m1", company: "Acme Corp", roleTitle: "Engineer", status: "APPLIED", date: NOW },
-    ])
+    vi.mocked(classifyStage1).mockReturnValue({
+      classified: [{ messageId: "m1", company: "Acme Corp", roleTitle: "Engineer", status: "APPLIED", date: NOW }],
+      unclassified: [],
+    })
     vi.mocked(prisma.application.findFirst).mockResolvedValue(null)
     vi.mocked(prisma.application.create).mockResolvedValue({} as any)
 
@@ -127,13 +133,11 @@ describe("syncApplications — application upsert", () => {
   })
 
   it("upgrades status when incoming has higher priority than existing", async () => {
-    vi.mocked(classifyBatch).mockResolvedValue([
-      { messageId: "m1", company: "Acme Corp", roleTitle: "Engineer", status: "INTERVIEW", date: NOW },
-    ])
-    vi.mocked(prisma.application.findFirst).mockResolvedValue({
-      id: "app-1",
-      status: "APPLIED",
-    } as any)
+    vi.mocked(classifyStage1).mockReturnValue({
+      classified: [{ messageId: "m1", company: "Acme Corp", roleTitle: "Engineer", status: "INTERVIEW", date: NOW }],
+      unclassified: [],
+    })
+    vi.mocked(prisma.application.findFirst).mockResolvedValue({ id: "app-1", status: "APPLIED" } as any)
     vi.mocked(prisma.application.update).mockResolvedValue({} as any)
 
     const { syncApplications } = await import("@/server/services/sync.service")
@@ -147,13 +151,11 @@ describe("syncApplications — application upsert", () => {
   })
 
   it("does not downgrade status when existing has higher priority", async () => {
-    vi.mocked(classifyBatch).mockResolvedValue([
-      { messageId: "m1", company: "Acme Corp", roleTitle: "Engineer", status: "APPLIED", date: NOW },
-    ])
-    vi.mocked(prisma.application.findFirst).mockResolvedValue({
-      id: "app-1",
-      status: "INTERVIEW",
-    } as any)
+    vi.mocked(classifyStage1).mockReturnValue({
+      classified: [{ messageId: "m1", company: "Acme Corp", roleTitle: "Engineer", status: "APPLIED", date: NOW }],
+      unclassified: [],
+    })
+    vi.mocked(prisma.application.findFirst).mockResolvedValue({ id: "app-1", status: "INTERVIEW" } as any)
 
     const { syncApplications } = await import("@/server/services/sync.service")
     const result = await syncApplications("user-1")
@@ -165,13 +167,11 @@ describe("syncApplications — application upsert", () => {
   })
 
   it("REJECTED always overrides INTERVIEW", async () => {
-    vi.mocked(classifyBatch).mockResolvedValue([
-      { messageId: "m1", company: "Acme Corp", roleTitle: "Engineer", status: "REJECTED", date: NOW },
-    ])
-    vi.mocked(prisma.application.findFirst).mockResolvedValue({
-      id: "app-1",
-      status: "INTERVIEW",
-    } as any)
+    vi.mocked(classifyStage1).mockReturnValue({
+      classified: [{ messageId: "m1", company: "Acme Corp", roleTitle: "Engineer", status: "REJECTED", date: NOW }],
+      unclassified: [],
+    })
+    vi.mocked(prisma.application.findFirst).mockResolvedValue({ id: "app-1", status: "INTERVIEW" } as any)
     vi.mocked(prisma.application.update).mockResolvedValue({} as any)
 
     const { syncApplications } = await import("@/server/services/sync.service")
@@ -184,13 +184,11 @@ describe("syncApplications — application upsert", () => {
   })
 
   it("OFFER is never overridden by any status", async () => {
-    vi.mocked(classifyBatch).mockResolvedValue([
-      { messageId: "m1", company: "Acme Corp", roleTitle: "Engineer", status: "REJECTED", date: NOW },
-    ])
-    vi.mocked(prisma.application.findFirst).mockResolvedValue({
-      id: "app-1",
-      status: "OFFER",
-    } as any)
+    vi.mocked(classifyStage1).mockReturnValue({
+      classified: [{ messageId: "m1", company: "Acme Corp", roleTitle: "Engineer", status: "REJECTED", date: NOW }],
+      unclassified: [],
+    })
+    vi.mocked(prisma.application.findFirst).mockResolvedValue({ id: "app-1", status: "OFFER" } as any)
 
     const { syncApplications } = await import("@/server/services/sync.service")
     await syncApplications("user-1")
@@ -198,8 +196,11 @@ describe("syncApplications — application upsert", () => {
     expect(prisma.application.update).not.toHaveBeenCalled()
   })
 
-  it("creates application with NEEDS_REVIEW for Stage 3 fallback", async () => {
-    vi.mocked(classifyBatch).mockResolvedValue([
+  it("creates application with NEEDS_REVIEW from Stage 2 fallback", async () => {
+    vi.mocked(classifyStage1).mockReturnValue({ classified: [], unclassified: [
+      { messageId: "m1", subject: "Some email", text: "snippet", date: NOW },
+    ]})
+    vi.mocked(classifyStage2Plus).mockResolvedValue([
       { messageId: "m1", company: "Acme Corp", roleTitle: "Engineer", status: "NEEDS_REVIEW", date: NOW },
     ])
     vi.mocked(prisma.application.findFirst).mockResolvedValue(null)
@@ -252,7 +253,7 @@ describe("syncApplications — SyncState", () => {
 // ─── GHOSTED auto-detection ──────────────────────────────────────────────────
 
 describe("syncApplications — GHOSTED sweep", () => {
-  it("marks APPLIED/INTERVIEW GMAIL applications as GHOSTED after 30 days", async () => {
+  it("marks APPLIED/INTERVIEW GMAIL applications as GHOSTED after 90 days", async () => {
     vi.mocked(prisma.syncState.findUnique).mockResolvedValue(null)
     vi.mocked(prisma.application.updateMany).mockResolvedValue({ count: 3 } as any)
 
