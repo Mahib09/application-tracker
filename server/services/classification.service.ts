@@ -14,6 +14,7 @@ export interface ClassificationResult {
   company: string
   roleTitle: string
   status: string
+  location: string | null
   date: Date
 }
 
@@ -31,34 +32,77 @@ export function preprocessText(subject: string, text: string): string {
   return combined.slice(0, 500)
 }
 
+// ─── Location extraction ──────────────────────────────────────────────────────
+
+const LOCATION_PATTERNS: RegExp[] = [
+  // Work type in brackets/parens: (Remote), [Hybrid], (Remote/Hybrid)
+  /\s*[\(\[](remote|hybrid|on-?site|in-?person|flexible)[^\)\]]*[\)\]]/gi,
+  // Work type standalone at end after separator: "- Remote", "| Hybrid", ", Remote"
+  /\s*[-|,]\s*(remote|hybrid|on-?site|in-?person|flexible)\s*$/gi,
+  // City/country at end: "- New York, NY", "| London, UK", "(Austin, TX)"
+  /\s*[\(\[,|\-]\s*[A-Z][a-zA-Z\s]{2,},\s*[A-Z]{2,3}[\)\]]?\s*$/g,
+]
+
+function extractLocation(str: string): { clean: string; location: string | null } {
+  let location: string | null = null
+  let clean = str
+
+  for (const pattern of LOCATION_PATTERNS) {
+    // Reset lastIndex for global regexes
+    pattern.lastIndex = 0
+    const match = clean.match(pattern)
+    if (match) {
+      location = match[0].replace(/^[\s\(\[,|\-]+|[\)\]]+$/g, "").trim()
+      clean = clean.replace(pattern, "").trim()
+      break
+    }
+  }
+
+  return { clean, location }
+}
+
 // ─── Company and role extraction ─────────────────────────────────────────────
 
 export function extractCompanyAndRole(
   subject: string
-): { company: string; roleTitle: string } | null {
+): { company: string; roleTitle: string; location: string | null } | null {
+  let roleRaw: string
+  let companyRaw: string
+
   // "Role at Company"
   let m = subject.match(/^(.+?)\s+at\s+(.+)$/i)
-  if (m) return { roleTitle: m[1].trim(), company: m[2].trim() }
-
-  // "Company - Role" or "Company: Role"
-  m = subject.match(/^(.+?)\s*[-:]\s*(.+)$/)
   if (m) {
-    const left = m[1].trim()
-    const right = m[2].trim()
-    // Heuristic: if right looks more like a role title (shorter, title-cased words)
-    // Default: left = company, right = role
-    return { company: left, roleTitle: right }
+    roleRaw = m[1].trim()
+    companyRaw = m[2].trim()
+  } else {
+    // "Company - Role" or "Company: Role"
+    m = subject.match(/^(.+?)\s*[-:]\s*(.+)$/)
+    if (m) {
+      companyRaw = m[1].trim()
+      roleRaw = m[2].trim()
+    } else {
+      // "Your application to/for Company"
+      m = subject.match(/your application (?:to|for)\s+(.+)/i)
+      if (m) return { company: m[1].trim(), roleTitle: "Unknown Role", location: null }
+
+      // "Application to/for Company"
+      m = subject.match(/application (?:to|for)\s+(.+)/i)
+      if (m) return { company: m[1].trim(), roleTitle: "Unknown Role", location: null }
+
+      return null
+    }
   }
 
-  // "Your application to Company"
-  m = subject.match(/your application (?:to|for)\s+(.+)/i)
-  if (m) return { company: m[1].trim(), roleTitle: "Unknown Role" }
+  // Strip location from role first, then company
+  const roleExtracted = extractLocation(roleRaw)
+  const companyExtracted = extractLocation(companyRaw)
+  const location = roleExtracted.location ?? companyExtracted.location
 
-  // "Application to/for Company"
-  m = subject.match(/application (?:to|for)\s+(.+)/i)
-  if (m) return { company: m[1].trim(), roleTitle: "Unknown Role" }
-
-  return null
+  return {
+    company: companyExtracted.clean,
+    roleTitle: roleExtracted.clean,
+    location,
+  }
 }
 
 // ─── Stage 1: Regex classification ──────────────────────────────────────────
@@ -109,12 +153,13 @@ export async function classifyWithAI(emails: EmailInput[]): Promise<Classificati
     const dateMap = new Map(batch.map((e) => [e.messageId, e.date]))
 
     const prompt = `You are classifying job application emails. For each email, extract:
-- company: the company name
-- roleTitle: the job title (use "Unknown Role" if unclear)
+- company: the company name (no location, just the name)
+- roleTitle: the job title only (no location, use "Unknown Role" if unclear)
 - status: one of APPLIED | INTERVIEW | OFFER | REJECTED | GHOSTED | NEEDS_REVIEW
+- location: city/state, country, "Remote", "Hybrid", or null if unknown
 
 Return a JSON array only, no other text. Example:
-[{"messageId":"id1","company":"Acme","roleTitle":"Engineer","status":"APPLIED"}]
+[{"messageId":"id1","company":"Acme","roleTitle":"Engineer","status":"APPLIED","location":"Remote"}]
 
 Emails:
 ${JSON.stringify(batch.map((e) => ({ messageId: e.messageId, subject: e.subject, text: e.text })))}
@@ -128,7 +173,7 @@ ${JSON.stringify(batch.map((e) => ({ messageId: e.messageId, subject: e.subject,
 
     const text = response.content.find((c) => c.type === "text")?.text ?? "[]"
 
-    let parsed: Array<{ messageId: string; company: string; roleTitle: string; status: string }> =
+    let parsed: Array<{ messageId: string; company: string; roleTitle: string; status: string; location?: string | null }> =
       []
     try {
       // Extract JSON array from response (may have surrounding text)
@@ -141,6 +186,7 @@ ${JSON.stringify(batch.map((e) => ({ messageId: e.messageId, subject: e.subject,
         company: "Unknown",
         roleTitle: "Unknown Role",
         status: "NEEDS_REVIEW",
+        location: null,
       }))
     }
 
@@ -150,6 +196,7 @@ ${JSON.stringify(batch.map((e) => ({ messageId: e.messageId, subject: e.subject,
         company: item.company,
         roleTitle: item.roleTitle,
         status: item.status,
+        location: item.location ?? null,
         date: dateMap.get(item.messageId) ?? new Date(),
       })
     }
@@ -210,6 +257,7 @@ export async function classifyStage2Plus(
         messageId: e.messageId,
         company: extracted?.company ?? "Unknown",
         roleTitle: extracted?.roleTitle ?? "Unknown Role",
+        location: extracted?.location ?? null,
         status: "NEEDS_REVIEW",
         date: e.date,
       }
@@ -246,13 +294,17 @@ export async function classifyStage2Plus(
   try {
     stage3Results = await classifyWithAI(stage3Inputs)
   } catch {
-    stage3Results = stage3Queue.map(({ email, partial }) => ({
-      messageId: email.messageId,
-      company: partial.company || extractCompanyAndRole(email.subject)?.company || "Unknown",
-      roleTitle: partial.roleTitle || extractCompanyAndRole(email.subject)?.roleTitle || "Unknown Role",
-      status: "NEEDS_REVIEW",
-      date: email.date,
-    }))
+    stage3Results = stage3Queue.map(({ email, partial }) => {
+      const extracted = extractCompanyAndRole(email.subject)
+      return {
+        messageId: email.messageId,
+        company: partial.company || extracted?.company || "Unknown",
+        roleTitle: partial.roleTitle || extracted?.roleTitle || "Unknown Role",
+        location: partial.location ?? extracted?.location ?? null,
+        status: "NEEDS_REVIEW",
+        date: email.date,
+      }
+    })
   }
 
   results.push(...stage3Results)

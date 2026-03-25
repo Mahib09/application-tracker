@@ -64,6 +64,7 @@ async function upsertResult(
       status: result.status as any,
       source: "GMAIL" as any,
       appliedAt: result.date,
+      location: result.location ?? null,
     },
   })
   return "created"
