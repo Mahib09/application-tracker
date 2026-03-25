@@ -73,6 +73,7 @@ enum applicationStatus {
   OFFER
   REJECTED
   GHOSTED
+  NEEDS_REVIEW
 }
 
 enum applicationSource {
