@@ -279,7 +279,8 @@ describe("syncApplications — GHOSTED sweep", () => {
     await syncApplications("user-1")
 
     const call = vi.mocked(prisma.application.updateMany).mock.calls[0][0]
-    expect(call.where.status.in).not.toContain("OFFER")
-    expect(call.where.status.in).not.toContain("REJECTED")
+    const statusIn = (call.where?.status as any)?.in as string[]
+    expect(statusIn).not.toContain("OFFER")
+    expect(statusIn).not.toContain("REJECTED")
   })
 })

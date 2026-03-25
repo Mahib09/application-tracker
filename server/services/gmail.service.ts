@@ -114,10 +114,10 @@ export async function fetchEmailsSince(
     })
 
     const data = getRes.data
-    const headers: Array<{ name?: string; value?: string }> =
-      data.payload?.headers ?? []
+    const headers = data.payload?.headers ?? []
 
-    const subject = headers.find((h) => h.name === "Subject")?.value ?? "(no subject)"
+    const subject =
+      headers.find((h) => h.name === "Subject")?.value ?? "(no subject)"
     const dateStr = headers.find((h) => h.name === "Date")?.value ?? ""
 
     emails.push({

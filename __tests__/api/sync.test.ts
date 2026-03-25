@@ -24,7 +24,7 @@ describe("POST /api/sync", () => {
   beforeEach(() => vi.clearAllMocks())
 
   it("returns 401 when unauthenticated", async () => {
-    vi.mocked(auth).mockResolvedValue(null)
+    vi.mocked(auth).mockResolvedValue(null as any)
 
     const { POST } = await import("@/app/api/sync/route")
     const res = await POST()
