@@ -20,7 +20,11 @@ export interface ClassificationResult {
 
 // ─── Text preprocessing ──────────────────────────────────────────────────────
 
-export function preprocessText(subject: string, text: string): string {
+export function preprocessText(
+  subject: string,
+  text: string,
+  mode: "snippet" | "body" = "snippet"
+): string {
   let combined = `${subject} ${text}`
   // Strip HTML tags
   combined = combined.replace(/<[^>]+>/g, "")
@@ -28,8 +32,15 @@ export function preprocessText(subject: string, text: string): string {
   combined = combined.replace(/[\w.+-]+@[\w-]+\.[a-z]{2,}/gi, "[email]")
   combined = combined.replace(/(\+?1[\s.-]?)?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}/g, "[phone]")
   combined = combined.replace(/https?:\/\/[^\s]+/g, "[url]")
-  // Truncate
-  return combined.slice(0, 500)
+  // Strip salary figures: $120,000 / CAD $95,000 / USD 80k / €75,000
+  combined = combined.replace(
+    /(?:USD|CAD|GBP|EUR|AUD)?\s*\$[\d,]+(?:\.\d{2})?(?:\s*[-–]\s*\$[\d,]+(?:\.\d{2})?)?/gi,
+    "[salary]"
+  )
+  combined = combined.replace(/\b\d{2,3}[kK]\b/g, "[salary]")
+  // Truncate based on mode
+  const limit = mode === "body" ? 800 : 500
+  return combined.slice(0, limit)
 }
 
 // ─── Location extraction ──────────────────────────────────────────────────────

@@ -52,6 +52,33 @@ describe("preprocessText", () => {
     const result = preprocessText("Subject", longText)
     expect(result.length).toBeLessThanOrEqual(500)
   })
+
+  it("strips salary figures with dollar sign", async () => {
+    const { preprocessText } = await import("@/server/services/classification.service")
+    const result = preprocessText("Subject", "The salary is $120,000 per year")
+    expect(result).toContain("[salary]")
+    expect(result).not.toContain("120,000")
+  })
+
+  it("strips salary figures with currency codes", async () => {
+    const { preprocessText } = await import("@/server/services/classification.service")
+    const result = preprocessText("Subject", "Compensation: CAD $95,000 - $110,000")
+    expect(result).toContain("[salary]")
+    expect(result).not.toContain("95,000")
+  })
+
+  it("truncates to 500 chars in snippet mode (default)", async () => {
+    const { preprocessText } = await import("@/server/services/classification.service")
+    const result = preprocessText("Subject", "a".repeat(1000))
+    expect(result.length).toBeLessThanOrEqual(500)
+  })
+
+  it("truncates to 800 chars in body mode", async () => {
+    const { preprocessText } = await import("@/server/services/classification.service")
+    const result = preprocessText("Subject", "a".repeat(1000), "body")
+    expect(result.length).toBeLessThanOrEqual(800)
+    expect(result.length).toBeGreaterThan(500)
+  })
 })
 
 // ─── extractCompanyAndRole ───────────────────────────────────────────────────
