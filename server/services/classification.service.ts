@@ -1,6 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk"
 import type { OAuth2Client } from "google-auth-library"
-import type { EmailRaw } from "@/server/services/gmail.service"
+import { fetchFullEmail, type EmailRaw } from "@/server/services/gmail.service"
 
 export interface EmailInput {
   messageId: string
@@ -302,27 +302,27 @@ export function classifyStage1(emails: EmailRaw[]): {
   return { classified, unclassified }
 }
 
-// ─── Stage 2: AI (gracefully degrades on AI failure) ─────────────────────────
+// ─── Stage 2+3: AI (gracefully degrades on AI failure) ───────────────────────
 
 /** Runs Stage 2 (AI on snippet) for emails that Stage 1 could not classify.
- *  Non-job emails omitted by AI are discarded. Falls back to subject extraction
- *  if AI is unavailable, discarding emails that cannot be identified at all. */
+ *  If Stage 2 resolves only one of company/role, Stage 3 fetches the full body
+ *  and runs AI again. Falls back to NEEDS_REVIEW with partial data if still
+ *  unresolved. Non-job emails identified from body are discarded. */
 export async function classifyStage2Plus(
   emails: EmailInput[],
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   gmailClient: OAuth2Client
 ): Promise<ClassificationResult[]> {
   if (emails.length === 0) return []
 
-  // Stage 2: AI on snippet
+  // Stage 2: AI on subject + snippet
   let stage2Results: ClassificationResult[]
   try {
     stage2Results = await classifyWithAI(emails)
   } catch {
-    // AI unavailable — best-effort extraction, discard if nothing extractable
+    // AI unavailable — best-effort subject extraction, discard if nothing found
     return emails.flatMap((e) => {
       const extracted = extractCompanyAndRole(e.subject)
-      if (!extracted) return [] // discard — cannot identify this email
+      if (!extracted) return []
       return [{
         messageId: e.messageId,
         company: extracted.company,
@@ -334,16 +334,77 @@ export async function classifyStage2Plus(
     })
   }
 
-  const results: ClassificationResult[] = []
+  const resolved: ClassificationResult[] = []
+  const stage3Queue: Array<{ input: EmailInput; partial: ClassificationResult }> = []
 
   for (const res of stage2Results) {
-    // Discard if AI returned an entry with no company AND no roleTitle
+    // Discard if AI returned nothing useful (both empty — not a job email)
     if (!res.company && !res.roleTitle) continue
-    // Otherwise include as-is (partial data with NEEDS_REVIEW is fine)
-    results.push(res)
+
+    // Selective Stage 3: fetch full body if either company or role is still missing
+    if (!res.company || !res.roleTitle) {
+      const original = emails.find((e) => e.messageId === res.messageId)!
+      stage3Queue.push({ input: original, partial: res })
+    } else {
+      resolved.push(res)
+    }
   }
 
-  return results
+  if (stage3Queue.length === 0) return resolved
+
+  // Stage 3: AI on full body for emails still missing company or role
+  const stage3Inputs: EmailInput[] = []
+  for (const { input } of stage3Queue) {
+    try {
+      const bodyText = await fetchFullEmail(gmailClient, input.messageId)
+      stage3Inputs.push({
+        messageId: input.messageId,
+        subject: input.subject,
+        text: preprocessText(input.subject, bodyText, "body"),
+        date: input.date,
+      })
+    } catch {
+      // If body fetch fails, keep partial Stage 2 result as NEEDS_REVIEW
+      const queueEntry = stage3Queue.find((q) => q.input.messageId === input.messageId)!
+      resolved.push({ ...queueEntry.partial, status: "NEEDS_REVIEW" })
+    }
+  }
+
+  if (stage3Inputs.length === 0) return resolved
+
+  let stage3Results: ClassificationResult[]
+  try {
+    stage3Results = await classifyWithAI(stage3Inputs)
+  } catch {
+    // AI failed — keep partial Stage 2 results as NEEDS_REVIEW
+    stage3Results = stage3Queue
+      .filter((q) => stage3Inputs.some((i) => i.messageId === q.input.messageId))
+      .map(({ partial }) => ({ ...partial, status: "NEEDS_REVIEW" }))
+  }
+
+  // Build a map for Stage 3 results
+  const stage3Map = new Map(stage3Results.map((r) => [r.messageId, r]))
+
+  for (const { input, partial } of stage3Queue) {
+    if (!stage3Inputs.some((i) => i.messageId === input.messageId)) continue
+
+    const stage3Result = stage3Map.get(input.messageId)
+    if (!stage3Result) {
+      // AI discarded this email (not job-related) — discard silently
+      continue
+    }
+    // Merge: prefer Stage 3 values, fall back to Stage 2 partial
+    resolved.push({
+      messageId: input.messageId,
+      company: stage3Result.company || partial.company || "",
+      roleTitle: stage3Result.roleTitle || partial.roleTitle || "",
+      status: stage3Result.status,
+      location: stage3Result.location ?? partial.location ?? null,
+      date: input.date,
+    })
+  }
+
+  return resolved
 }
 
 // ─── Convenience wrapper (kept for backward compatibility) ────────────────────

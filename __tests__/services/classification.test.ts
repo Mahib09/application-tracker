@@ -11,6 +11,11 @@ vi.mock("@anthropic-ai/sdk", () => ({
   },
 }))
 
+vi.mock("@/server/services/gmail.service", () => ({
+  fetchFullEmail: vi.fn(),
+}))
+import { fetchFullEmail } from "@/server/services/gmail.service"
+
 // ─── preprocessText ──────────────────────────────────────────────────────────
 
 describe("preprocessText", () => {
@@ -361,6 +366,110 @@ describe("classifyBatch", () => {
       { messageId: "msg-1", subject: "Weekly Newsletter", snippet: "Top stories this week", date: new Date() },
     ]
     const results = await classifyBatch(emails, {} as any)
+    expect(results).toHaveLength(0)
+  })
+
+  it("Stage 3 is triggered when Stage 2 returns missing roleTitle", async () => {
+    // Stage 2: company found but no role
+    const stage2Response = JSON.stringify([
+      { messageId: "msg-1", company: "Google", roleTitle: null, status: "APPLIED", location: null },
+    ])
+    // Stage 3: role found from body
+    const stage3Response = JSON.stringify([
+      { messageId: "msg-1", company: "Google", roleTitle: "Software Engineer", status: "APPLIED", location: null },
+    ])
+    mockCreate
+      .mockResolvedValueOnce({ content: [{ type: "text", text: stage2Response }] })
+      .mockResolvedValueOnce({ content: [{ type: "text", text: stage3Response }] })
+    vi.mocked(fetchFullEmail).mockResolvedValue("We are pleased to confirm your application for the Software Engineer role.")
+
+    const { classifyBatch } = await import("@/server/services/classification.service")
+    const emails = [
+      { messageId: "msg-1", subject: "Your application to Google", snippet: "We received it", date: new Date() },
+    ]
+    const results = await classifyBatch(emails, {} as any)
+
+    expect(fetchFullEmail).toHaveBeenCalledWith({}, "msg-1")
+    expect(results[0].roleTitle).toBe("Software Engineer")
+  })
+
+  it("Stage 3 is triggered when Stage 2 returns missing company", async () => {
+    const stage2Response = JSON.stringify([
+      { messageId: "msg-1", company: null, roleTitle: "Software Engineer", status: "APPLIED", location: null },
+    ])
+    const stage3Response = JSON.stringify([
+      { messageId: "msg-1", company: "Stripe", roleTitle: "Software Engineer", status: "APPLIED", location: null },
+    ])
+    mockCreate
+      .mockResolvedValueOnce({ content: [{ type: "text", text: stage2Response }] })
+      .mockResolvedValueOnce({ content: [{ type: "text", text: stage3Response }] })
+    vi.mocked(fetchFullEmail).mockResolvedValue("Thank you for applying to Stripe.")
+
+    const { classifyBatch } = await import("@/server/services/classification.service")
+    const emails = [
+      { messageId: "msg-1", subject: "Application confirmation", snippet: "We received it", date: new Date() },
+    ]
+    const results = await classifyBatch(emails, {} as any)
+
+    expect(results[0].company).toBe("Stripe")
+  })
+
+  it("Stage 3 is NOT triggered when Stage 2 resolves both company and role", async () => {
+    const stage2Response = JSON.stringify([
+      { messageId: "msg-1", company: "Stripe", roleTitle: "Software Engineer", status: "APPLIED", location: null },
+    ])
+    mockCreate.mockResolvedValueOnce({ content: [{ type: "text", text: stage2Response }] })
+
+    const { classifyBatch } = await import("@/server/services/classification.service")
+    const emails = [
+      { messageId: "msg-1", subject: "Application confirmation", snippet: "snippet", date: new Date() },
+    ]
+    await classifyBatch(emails, {} as any)
+
+    expect(fetchFullEmail).not.toHaveBeenCalled()
+    expect(mockCreate).toHaveBeenCalledTimes(1)
+  })
+
+  it("Stage 3 falls back to NEEDS_REVIEW if body also unresolvable", async () => {
+    const stage2Response = JSON.stringify([
+      { messageId: "msg-1", company: "Acme", roleTitle: null, status: "APPLIED", location: null },
+    ])
+    const stage3Response = JSON.stringify([
+      { messageId: "msg-1", company: "Acme", roleTitle: null, status: "NEEDS_REVIEW", location: null },
+    ])
+    mockCreate
+      .mockResolvedValueOnce({ content: [{ type: "text", text: stage2Response }] })
+      .mockResolvedValueOnce({ content: [{ type: "text", text: stage3Response }] })
+    vi.mocked(fetchFullEmail).mockResolvedValue("Your application has been received.")
+
+    const { classifyBatch } = await import("@/server/services/classification.service")
+    const emails = [
+      { messageId: "msg-1", subject: "Application update", snippet: "snippet", date: new Date() },
+    ]
+    const results = await classifyBatch(emails, {} as any)
+
+    // Kept with partial data — company preserved, role empty
+    expect(results[0].company).toBe("Acme")
+    expect(results[0].status).toBe("NEEDS_REVIEW")
+  })
+
+  it("Stage 3 discards non-job emails identified from full body", async () => {
+    // Stage 2 returns one field populated (company only) — triggers Stage 3
+    const stage2Response = JSON.stringify([
+      { messageId: "msg-1", company: "Acme", roleTitle: null, status: "NEEDS_REVIEW", location: null },
+    ])
+    // Stage 3 AI discards it (returns empty array)
+    mockCreate
+      .mockResolvedValueOnce({ content: [{ type: "text", text: stage2Response }] })
+      .mockResolvedValueOnce({ content: [{ type: "text", text: "[]" }] })
+    vi.mocked(fetchFullEmail).mockResolvedValue("Meeting invite: standup at 9am")
+
+    const { classifyBatch } = await import("@/server/services/classification.service")
+    const emails = [
+      { messageId: "msg-1", subject: "Invitation", snippet: "See calendar", date: new Date() },
+    ]
+    const results = await classifyBatch(emails, {} as any)
+
     expect(results).toHaveLength(0)
   })
 })
