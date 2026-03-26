@@ -407,6 +407,52 @@ export async function classifyStage2Plus(
   return resolved
 }
 
+// ─── Output sanitization ─────────────────────────────────────────────────────
+
+export function isLikelyRoleTitle(str: string): boolean {
+  if (str.trim().split(/\s+/).length > 4) return true
+  if (/\([^)]+\)\s*$/.test(str)) return true
+  if (/\b(developer|engineer|designer|analyst|manager|coordinator|specialist|consultant|architect|administrator|director)\b\s*(\([^)]+\))?\s*$/i.test(str)) return true
+  return false
+}
+
+const ARTIFACT_ROLE_PATTERNS: RegExp[] = [
+  /^application\s+(confirmation|update|received|status|viewed|submitted|acknowledgement)$/i,
+  /^your\s+application$/i,
+  /^thank\s+you\s+for\s+(applying|your\s+application)$/i,
+]
+
+function isArtifactRoleTitle(roleTitle: string): boolean {
+  return ARTIFACT_ROLE_PATTERNS.some((p) => p.test(roleTitle.trim()))
+}
+
+/** Cleans up company and roleTitle fields before persisting. */
+export function sanitizeResult(result: ClassificationResult): ClassificationResult {
+  let company = result.company.trim().replace(/\s{2,}/g, " ").replace(/[!,.]+$/, "")
+  let roleTitle = result.roleTitle.trim().replace(/\s{2,}/g, " ").replace(/[!,.]+$/, "")
+
+  // Strip "role of" / "the role of" / "position of" prefix
+  roleTitle = roleTitle.replace(/^(?:the\s+)?(?:role|position)\s+of\s+/i, "")
+
+  // Clear numeric-only requisition numbers (e.g. "70471", "2024-70471")
+  if (/^\d[\d-]*\d$|^\d+$/.test(roleTitle.trim())) {
+    roleTitle = ""
+  }
+
+  // Clear artifact role titles (status-description phrases, not job titles)
+  if (isArtifactRoleTitle(roleTitle)) {
+    roleTitle = ""
+  }
+
+  // Swap company→roleTitle when company looks like a job title and role is empty
+  if (isLikelyRoleTitle(company) && roleTitle === "") {
+    roleTitle = company
+    company = ""
+  }
+
+  return { ...result, company, roleTitle }
+}
+
 // ─── Convenience wrapper (kept for backward compatibility) ────────────────────
 
 export async function classifyBatch(

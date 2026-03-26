@@ -473,3 +473,119 @@ describe("classifyBatch", () => {
     expect(results).toHaveLength(0)
   })
 })
+
+describe("sanitizeResult — artifact filtering", () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  it("clears 'Application Confirmation' as roleTitle", async () => {
+    const { sanitizeResult } = await import("@/server/services/classification.service")
+    const result = sanitizeResult({
+      messageId: "m1", company: "Stripe", roleTitle: "Application Confirmation",
+      status: "APPLIED", location: null, date: new Date(),
+    })
+    expect(result.roleTitle).toBe("")
+  })
+
+  it("clears 'Application Update' as roleTitle", async () => {
+    const { sanitizeResult } = await import("@/server/services/classification.service")
+    const result = sanitizeResult({
+      messageId: "m1", company: "Stripe", roleTitle: "Application Update",
+      status: "APPLIED", location: null, date: new Date(),
+    })
+    expect(result.roleTitle).toBe("")
+  })
+
+  it("clears 'Application Received' as roleTitle", async () => {
+    const { sanitizeResult } = await import("@/server/services/classification.service")
+    const result = sanitizeResult({
+      messageId: "m1", company: "Stripe", roleTitle: "Application Received",
+      status: "APPLIED", location: null, date: new Date(),
+    })
+    expect(result.roleTitle).toBe("")
+  })
+
+  it("does NOT clear 'Application Security Engineer' (partial match guard)", async () => {
+    const { sanitizeResult } = await import("@/server/services/classification.service")
+    const result = sanitizeResult({
+      messageId: "m1", company: "Stripe", roleTitle: "Application Security Engineer",
+      status: "APPLIED", location: null, date: new Date(),
+    })
+    expect(result.roleTitle).toBe("Application Security Engineer")
+  })
+
+  it("swaps company to roleTitle when company is 'Junior Developer' and role is empty", async () => {
+    const { sanitizeResult } = await import("@/server/services/classification.service")
+    const result = sanitizeResult({
+      messageId: "m1", company: "Junior Developer", roleTitle: "",
+      status: "APPLIED", location: null, date: new Date(),
+    })
+    expect(result.company).toBe("")
+    expect(result.roleTitle).toBe("Junior Developer")
+  })
+
+  it("swaps company to roleTitle when company is 'Software Engineer (entry)' and role is empty", async () => {
+    const { sanitizeResult } = await import("@/server/services/classification.service")
+    const result = sanitizeResult({
+      messageId: "m1", company: "Software Engineer (entry)", roleTitle: "",
+      status: "APPLIED", location: null, date: new Date(),
+    })
+    expect(result.company).toBe("")
+    expect(result.roleTitle).toBe("Software Engineer (entry)")
+  })
+
+  it("does NOT swap when roleTitle is already populated", async () => {
+    const { sanitizeResult } = await import("@/server/services/classification.service")
+    const result = sanitizeResult({
+      messageId: "m1", company: "Junior Developer", roleTitle: "Backend Engineer",
+      status: "APPLIED", location: null, date: new Date(),
+    })
+    expect(result.company).toBe("Junior Developer")
+    expect(result.roleTitle).toBe("Backend Engineer")
+  })
+
+  it("clears artifact roleTitle then leaves valid company intact (no swap)", async () => {
+    const { sanitizeResult } = await import("@/server/services/classification.service")
+    const result = sanitizeResult({
+      messageId: "m1", company: "Google", roleTitle: "Application Confirmation",
+      status: "APPLIED", location: null, date: new Date(),
+    })
+    expect(result.company).toBe("Google")
+    expect(result.roleTitle).toBe("")
+  })
+
+  it("clears 'Application Status' as roleTitle", async () => {
+    const { sanitizeResult } = await import("@/server/services/classification.service")
+    const result = sanitizeResult({
+      messageId: "m1", company: "Stripe", roleTitle: "Application Status",
+      status: "APPLIED", location: null, date: new Date(),
+    })
+    expect(result.roleTitle).toBe("")
+  })
+
+  it("clears 'Your Application' as roleTitle", async () => {
+    const { sanitizeResult } = await import("@/server/services/classification.service")
+    const result = sanitizeResult({
+      messageId: "m1", company: "Stripe", roleTitle: "Your Application",
+      status: "APPLIED", location: null, date: new Date(),
+    })
+    expect(result.roleTitle).toBe("")
+  })
+
+  it("clears 'Thank you for applying' as roleTitle", async () => {
+    const { sanitizeResult } = await import("@/server/services/classification.service")
+    const result = sanitizeResult({
+      messageId: "m1", company: "Stripe", roleTitle: "Thank you for applying",
+      status: "APPLIED", location: null, date: new Date(),
+    })
+    expect(result.roleTitle).toBe("")
+  })
+
+  it("clears 'Thank you for your application' as roleTitle", async () => {
+    const { sanitizeResult } = await import("@/server/services/classification.service")
+    const result = sanitizeResult({
+      messageId: "m1", company: "Stripe", roleTitle: "Thank you for your application",
+      status: "APPLIED", location: null, date: new Date(),
+    })
+    expect(result.roleTitle).toBe("")
+  })
+})
