@@ -45,7 +45,7 @@ export default function SyncButton({ lastSyncedAt, cooldownMs: initialCooldown }
         setCooldownMs(data.cooldownMs)
       } else {
         setLastSynced(new Date())
-        setCooldownMs(0)
+        setCooldownMs(15 * 60 * 1000)
         setMessage(`Synced ${data.synced} new application${data.synced !== 1 ? "s" : ""}`)
         router.refresh()
       }
