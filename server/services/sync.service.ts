@@ -1,6 +1,6 @@
 import { prisma } from "@/server/lib/prisma"
 import { getGmailClient, fetchEmailsSince } from "@/server/services/gmail.service"
-import { classifyStage1, classifyStage2Plus, type ClassificationResult } from "@/server/services/classification.service"
+import { classifyStage1, classifyStage2Plus, roleTitlesSimilar, type ClassificationResult } from "@/server/services/classification.service"
 
 export interface SyncResult {
   synced: number
@@ -16,11 +16,28 @@ const GHOSTED_AFTER_MS = 30 * 24 * 60 * 60 * 1000 // 30 days
 
 // ─── Upsert helper ───────────────────────────────────────────────────────────
 
+// STATUS_PRIORITY governs which status "wins" when two emails conflict.
+// REJECTED is intentionally equal to INTERVIEW (both 4) so that a newer rejection
+// email can replace an older interview record via the date tiebreaker.
+// TERMINAL_STATUSES provides the guard that prevents INTERVIEW from overwriting
+// REJECTED — the two structures are load-bearing against each other.
+const STATUS_PRIORITY: Record<string, number> = {
+  OFFER: 5,
+  INTERVIEW: 4,
+  REJECTED: 4, // equal to INTERVIEW so a newer rejection can replace an older interview
+  GHOSTED: 3,
+  APPLIED: 2,
+  NEEDS_REVIEW: 1,
+}
+
+const TERMINAL_STATUSES = new Set(["OFFER", "REJECTED"])
+
 async function upsertResult(
   userId: string,
   result: ClassificationResult,
 ): Promise<"created" | "updated" | "skipped"> {
-  const existing = await prisma.application.findFirst({
+  // ── Tier 1: exact match (company + roleTitle, case insensitive) ──────────────
+  let existing = await prisma.application.findFirst({
     where: {
       userId,
       company: { equals: result.company, mode: "insensitive" },
@@ -28,21 +45,102 @@ async function upsertResult(
     },
   })
 
-  if (existing) {
-    if (result.date > existing.appliedAt) {
-      await prisma.application.update({
-        where: { id: existing.id },
-        data: {
-          status: result.status as any,
-          appliedAt: result.date,
-          location: result.location ?? existing.location,
-        },
-      })
-      return "updated"
-    }
-    return "skipped"
+  // ── Tier 2: incoming has role, find existing with same company + empty role ──
+  if (!existing && result.roleTitle !== "") {
+    existing = await prisma.application.findFirst({
+      where: {
+        userId,
+        company: { equals: result.company, mode: "insensitive" },
+        roleTitle: { equals: "", mode: "insensitive" },
+      },
+      orderBy: { appliedAt: "desc" },
+    })
   }
 
+  // ── Tier 2.5: same company, non-empty roles, normalized similarity ≥ 60% ────
+  if (!existing && result.roleTitle !== "") {
+    const candidates = await prisma.application.findMany({
+      where: {
+        userId,
+        company: { equals: result.company, mode: "insensitive" },
+        NOT: { roleTitle: "" },
+      },
+      orderBy: { appliedAt: "desc" },
+    })
+    existing = candidates.find((c) => roleTitlesSimilar(c.roleTitle, result.roleTitle)) ?? null
+  }
+
+  // ── Tier 3: incoming has no role — match most recent record for this company ─
+  if (!existing && result.roleTitle === "") {
+    existing = await prisma.application.findFirst({
+      where: {
+        userId,
+        company: { equals: result.company, mode: "insensitive" },
+      },
+      orderBy: { appliedAt: "desc" },
+    })
+  }
+
+  if (existing) {
+    const existingPriority = STATUS_PRIORITY[existing.status] ?? 0
+    const newPriority = STATUS_PRIORITY[result.status] ?? 0
+
+    // Field enrichment: fill empty roleTitle and null location from incoming
+    const enrichedRole =
+      existing.roleTitle === "" && result.roleTitle !== "" ? result.roleTitle : existing.roleTitle
+    const enrichedLocation =
+      existing.location === null && result.location !== null ? result.location : existing.location
+
+    // ── Terminal protection ────────────────────────────────────────────────────
+    // OFFER is never overwritten. REJECTED yields only to OFFER.
+    if (TERMINAL_STATUSES.has(existing.status)) {
+      // Only REJECTED can yield — and only to OFFER. OFFER never yields to anything.
+      const isRejectedYieldingToOffer = existing.status === "REJECTED" && result.status === "OFFER"
+      if (!isRejectedYieldingToOffer) {
+        const hasEnrichment =
+          enrichedRole !== existing.roleTitle || enrichedLocation !== existing.location
+        if (hasEnrichment) {
+          await prisma.application.update({
+            where: { id: existing.id },
+            data: { roleTitle: enrichedRole, location: enrichedLocation },
+          })
+          return "updated"
+        }
+        return "skipped"
+      }
+      // REJECTED → OFFER falls through to normal update logic below
+    }
+
+    // ── Status update condition ───────────────────────────────────────────────
+    const shouldUpdateStatus =
+      newPriority > existingPriority ||
+      (newPriority === existingPriority && result.date > existing.appliedAt)
+
+    // Only advance appliedAt when the status is also advancing — prevents a late
+    // APPLIED auto-reply from updating the date on an INTERVIEW/REJECTED record
+    const shouldUpdateDate = shouldUpdateStatus && result.date > existing.appliedAt
+
+    const hasChanges =
+      shouldUpdateStatus ||
+      shouldUpdateDate ||
+      enrichedRole !== existing.roleTitle ||
+      enrichedLocation !== existing.location
+
+    if (!hasChanges) return "skipped"
+
+    await prisma.application.update({
+      where: { id: existing.id },
+      data: {
+        status: shouldUpdateStatus ? (result.status as any) : existing.status,
+        appliedAt: shouldUpdateDate ? result.date : existing.appliedAt,
+        roleTitle: enrichedRole,
+        location: enrichedLocation,
+      },
+    })
+    return "updated"
+  }
+
+  // ── No match: create new record ───────────────────────────────────────────────
   await prisma.application.create({
     data: {
       userId,
