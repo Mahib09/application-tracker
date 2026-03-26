@@ -213,16 +213,32 @@ export async function classifyWithAI(emails: EmailInput[]): Promise<Classificati
 
     const prompt = `You are extracting job application data from emails. For each email return:
 - company: the company name only (e.g. "Google", "Stripe"). Return null if unknown.
-- roleTitle: the job title only, concise (e.g. "Software Engineer", "Frontend Developer"). Return null if unknown. Never return a full sentence.
+- roleTitle: the specific job title only (e.g. "Software Engineer", "Frontend Developer"). Extract just the title — never copy the subject line or write a sentence. Strip any prefix like "role of", "position of", "the role". Return null if the title cannot be determined.
 - status: one of APPLIED | INTERVIEW | OFFER | REJECTED | GHOSTED | NEEDS_REVIEW
 - location: city/country, "Remote", "Hybrid", or null
 
+Status definitions:
+- APPLIED: application confirmation, "thank you for applying", "application received/submitted/under review"
+- INTERVIEW: interview invitation, phone screen, technical assessment, "next steps", "we'd like to chat", "moving forward"
+- OFFER: offer letter, "pleased to offer", "we would like to offer you the position"
+- REJECTED: "not moving forward", "decided to pursue other candidates", "unfortunately", "no longer considering", "position has been filled", "decided not to move forward"
+- NEEDS_REVIEW: job-related email but status cannot be clearly determined
+
 Rules:
 - Return null for company or roleTitle if you cannot determine them — do not guess or use placeholder values.
+- IMPORTANT: roleTitle must be a real job title. Never return a status-description phrase as roleTitle. These are NOT job titles: "Application Confirmation", "Application Update", "Application Received", "Application Status", "Application Viewed". If the job title cannot be determined, return null.
+- If the email clearly signals a status (rejection, interview, offer) but company or roleTitle cannot be determined, still return the correct status with null for the unknown fields. Do NOT default to NEEDS_REVIEW when the status signal is unambiguous.
+- If the company field appears to be a job title (e.g. "Junior Developer", "Software Engineer") and no company name is present in the email, return company: null and put the title in roleTitle.
 - Discard entirely (omit from response) if the email is: a calendar invite, meeting invitation, "application viewed" notification, out-of-office reply, referral email where no application was submitted, or newsletter.
 - Return a JSON array only, no other text.
 
-Example: [{"messageId":"id1","company":"Acme","roleTitle":"Engineer","status":"APPLIED","location":"Remote"}]
+BAD examples (never do this):
+  {"messageId":"id1","company":"Stripe","roleTitle":"Application Confirmation","status":"APPLIED"} — WRONG: "Application Confirmation" is not a job title
+  {"messageId":"id2","company":"Junior Developer","roleTitle":null,"status":"APPLIED"} — WRONG: "Junior Developer" is a job title, not a company
+
+GOOD examples:
+  {"messageId":"id1","company":"Stripe","roleTitle":null,"status":"APPLIED"}
+  {"messageId":"id2","company":null,"roleTitle":"Junior Developer","status":"APPLIED"}
 
 Emails:
 ${JSON.stringify(batch.map((e) => ({ messageId: e.messageId, subject: e.subject, text: e.text })))}
