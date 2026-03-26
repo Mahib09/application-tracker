@@ -11,13 +11,6 @@ vi.mock("@anthropic-ai/sdk", () => ({
   },
 }))
 
-// Mock gmail service (fetchFullEmail used in Stage 3)
-vi.mock("@/server/services/gmail.service", () => ({
-  fetchFullEmail: vi.fn(),
-}))
-
-import { fetchFullEmail } from "@/server/services/gmail.service"
-
 // ─── preprocessText ──────────────────────────────────────────────────────────
 
 describe("preprocessText", () => {
@@ -89,6 +82,42 @@ describe("extractCompanyAndRole", () => {
     const result = extractCompanyAndRole("Thanks for reaching out!")
     expect(result).toBeNull()
   })
+
+  it("strips Re: prefix before parsing", async () => {
+    const { extractCompanyAndRole } = await import("@/server/services/classification.service")
+    const result = extractCompanyAndRole("Re: Software Engineer at Google")
+    expect(result).toMatchObject({ company: "Google", roleTitle: "Software Engineer" })
+  })
+
+  it("strips Fwd: prefix before parsing", async () => {
+    const { extractCompanyAndRole } = await import("@/server/services/classification.service")
+    const result = extractCompanyAndRole("Fwd: Backend Engineer at Notion")
+    expect(result).toMatchObject({ company: "Notion", roleTitle: "Backend Engineer" })
+  })
+
+  it("parses 'Thank you for applying to <Company>'", async () => {
+    const { extractCompanyAndRole } = await import("@/server/services/classification.service")
+    const result = extractCompanyAndRole("Thank you for applying to Stripe")
+    expect(result).toMatchObject({ company: "Stripe", roleTitle: "Unknown Role" })
+  })
+
+  it("parses 'Interview for <Role> at <Company>'", async () => {
+    const { extractCompanyAndRole } = await import("@/server/services/classification.service")
+    const result = extractCompanyAndRole("Interview for Backend Engineer at Notion")
+    expect(result).toMatchObject({ company: "Notion", roleTitle: "Backend Engineer" })
+  })
+
+  it("parses em dash '<Company> — <Role>'", async () => {
+    const { extractCompanyAndRole } = await import("@/server/services/classification.service")
+    const result = extractCompanyAndRole("Acme Corp — Product Designer")
+    expect(result).toMatchObject({ company: "Acme Corp", roleTitle: "Product Designer" })
+  })
+
+  it("parses '<Company> has received your'", async () => {
+    const { extractCompanyAndRole } = await import("@/server/services/classification.service")
+    const result = extractCompanyAndRole("Google has received your application")
+    expect(result).toMatchObject({ company: "Google", roleTitle: "Unknown Role" })
+  })
 })
 
 // ─── classifyWithRegex ───────────────────────────────────────────────────────
@@ -129,6 +158,21 @@ describe("classifyWithRegex", () => {
   it("returns null for unrecognized text", async () => {
     const { classifyWithRegex } = await import("@/server/services/classification.service")
     expect(classifyWithRegex("Hello", "Just checking in")).toBeNull()
+  })
+
+  it("returns APPLIED for 'application confirmation' in subject", async () => {
+    const { classifyWithRegex } = await import("@/server/services/classification.service")
+    expect(classifyWithRegex("Application confirmation from Stripe", "")).toBe("APPLIED")
+  })
+
+  it("returns INTERVIEW for 'would like to invite you' in subject", async () => {
+    const { classifyWithRegex } = await import("@/server/services/classification.service")
+    expect(classifyWithRegex("We'd like to invite you to interview", "")).toBe("INTERVIEW")
+  })
+
+  it("returns REJECTED for 'after careful consideration' in subject", async () => {
+    const { classifyWithRegex } = await import("@/server/services/classification.service")
+    expect(classifyWithRegex("After careful consideration we will not be moving forward", "")).toBe("REJECTED")
   })
 })
 
@@ -228,47 +272,30 @@ describe("classifyBatch", () => {
     expect(results[0].status).toBe("APPLIED")
   })
 
-  it("Stage 3 re-fetches full body for Stage 2 unclassified emails", async () => {
-    // Stage 2 returns NEEDS_REVIEW → triggers Stage 3
-    const stage2Response = JSON.stringify([
+  it("Stage 2 unresolvable emails are included as NEEDS_REVIEW", async () => {
+    const aiResponse = JSON.stringify([
       { messageId: "msg-1", company: "Acme Corp", roleTitle: "Engineer", status: "NEEDS_REVIEW" },
     ])
-    // Stage 3 resolves it
-    const stage3Response = JSON.stringify([
-      { messageId: "msg-1", company: "Acme Corp", roleTitle: "Engineer", status: "INTERVIEW" },
-    ])
-    mockCreate
-      .mockResolvedValueOnce({ content: [{ type: "text", text: stage2Response }] })
-      .mockResolvedValueOnce({ content: [{ type: "text", text: stage3Response }] })
-
-    vi.mocked(fetchFullEmail).mockResolvedValue("We would like to invite you for an interview")
+    mockCreate.mockResolvedValue({ content: [{ type: "text", text: aiResponse }] })
 
     const { classifyBatch } = await import("@/server/services/classification.service")
-
     const emails = [
       { messageId: "msg-1", subject: "Update", snippet: "See details inside", date: new Date() },
     ]
-
-    const results = await classifyBatch(emails, {} as any)
-
-    expect(fetchFullEmail).toHaveBeenCalledWith({}, "msg-1")
-    expect(results[0].status).toBe("INTERVIEW")
-  })
-
-  it("Stage 3 fallback sets status to NEEDS_REVIEW", async () => {
-    const needsReviewResponse = JSON.stringify([
-      { messageId: "msg-1", company: "Acme Corp", roleTitle: "Engineer", status: "NEEDS_REVIEW" },
-    ])
-    mockCreate.mockResolvedValue({ content: [{ type: "text", text: needsReviewResponse }] })
-    vi.mocked(fetchFullEmail).mockResolvedValue("Some ambiguous content")
-
-    const { classifyBatch } = await import("@/server/services/classification.service")
-
-    const emails = [
-      { messageId: "msg-1", subject: "Update", snippet: "See details", date: new Date() },
-    ]
-
     const results = await classifyBatch(emails, {} as any)
     expect(results[0].status).toBe("NEEDS_REVIEW")
+    // No Stage 3: fetchFullEmail should NOT be called
+  })
+
+  it("AI response omitting non-job emails means they are discarded", async () => {
+    // AI returns empty array (discarded the newsletter)
+    mockCreate.mockResolvedValue({ content: [{ type: "text", text: "[]" }] })
+
+    const { classifyBatch } = await import("@/server/services/classification.service")
+    const emails = [
+      { messageId: "msg-1", subject: "Weekly Newsletter", snippet: "Top stories this week", date: new Date() },
+    ]
+    const results = await classifyBatch(emails, {} as any)
+    expect(results).toHaveLength(0)
   })
 })

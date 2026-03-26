@@ -1,6 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk"
 import type { OAuth2Client } from "google-auth-library"
-import { fetchFullEmail, type EmailRaw } from "@/server/services/gmail.service"
+import type { EmailRaw } from "@/server/services/gmail.service"
 
 export interface EmailInput {
   messageId: string
@@ -66,27 +66,72 @@ function extractLocation(str: string): { clean: string; location: string | null 
 export function extractCompanyAndRole(
   subject: string
 ): { company: string; roleTitle: string; location: string | null } | null {
+  // Strip Re:/Fwd: prefixes before any pattern matching
+  const s = subject.replace(/^(re|fwd?):\s*/i, "").trim()
+
   let roleRaw: string
   let companyRaw: string
+  let m: RegExpMatchArray | null
+
+  // "interview for <Role> at <Company>" — most specific first
+  m = s.match(/interview for\s+(.+?)\s+at\s+(.+)/i)
+  if (m) {
+    roleRaw = m[1].trim()
+    companyRaw = m[2].trim()
+    const roleExtracted = extractLocation(roleRaw)
+    const companyExtracted = extractLocation(companyRaw)
+    const location = roleExtracted.location ?? companyExtracted.location
+    return { company: companyExtracted.clean, roleTitle: roleExtracted.clean, location }
+  }
+
+  // "for the <Role> [role|position] at <Company>"
+  m = s.match(/for the\s+(.+?)\s+(?:role\s+|position\s+)?at\s+(.+)/i)
+  if (m) {
+    roleRaw = m[1].trim()
+    companyRaw = m[2].trim()
+    const roleExtracted = extractLocation(roleRaw)
+    const companyExtracted = extractLocation(companyRaw)
+    const location = roleExtracted.location ?? companyExtracted.location
+    return { company: companyExtracted.clean, roleTitle: roleExtracted.clean, location }
+  }
+
+  // "thank you for applying to <Company>"
+  m = s.match(/thank you for applying to\s+(.+)/i)
+  if (m) return { company: m[1].trim(), roleTitle: "Unknown Role", location: null }
+
+  // "<Company> — <Role>" (em dash)
+  m = s.match(/^(.+?)\s*—\s*(.+)$/)
+  if (m) {
+    companyRaw = m[1].trim()
+    roleRaw = m[2].trim()
+    const roleExtracted = extractLocation(roleRaw)
+    const companyExtracted = extractLocation(companyRaw)
+    const location = roleExtracted.location ?? companyExtracted.location
+    return { company: companyExtracted.clean, roleTitle: roleExtracted.clean, location }
+  }
+
+  // "<Company> has received your"
+  m = s.match(/^(.+?)\s+has received your/i)
+  if (m) return { company: m[1].trim(), roleTitle: "Unknown Role", location: null }
 
   // "Role at Company"
-  let m = subject.match(/^(.+?)\s+at\s+(.+)$/i)
+  m = s.match(/^(.+?)\s+at\s+(.+)$/i)
   if (m) {
     roleRaw = m[1].trim()
     companyRaw = m[2].trim()
   } else {
     // "Company - Role" or "Company: Role"
-    m = subject.match(/^(.+?)\s*[-:]\s*(.+)$/)
+    m = s.match(/^(.+?)\s*[-:]\s*(.+)$/)
     if (m) {
       companyRaw = m[1].trim()
       roleRaw = m[2].trim()
     } else {
       // "Your application to/for Company"
-      m = subject.match(/your application (?:to|for)\s+(.+)/i)
+      m = s.match(/your application (?:to|for)\s+(.+)/i)
       if (m) return { company: m[1].trim(), roleTitle: "Unknown Role", location: null }
 
       // "Application to/for Company"
-      m = subject.match(/application (?:to|for)\s+(.+)/i)
+      m = s.match(/application (?:to|for)\s+(.+)/i)
       if (m) return { company: m[1].trim(), roleTitle: "Unknown Role", location: null }
 
       return null
@@ -111,22 +156,22 @@ const PATTERNS: Array<{ status: string; pattern: RegExp }> = [
   {
     status: "OFFER",
     pattern:
-      /offer letter|pleased to offer|extend.*offer|congratulations.*offer|accepted.*position|we.*like to offer/i,
+      /offer letter|pleased to offer|extend.*offer|congratulations.*offer|accepted.*position|we.*like to offer|we would like to offer|formal offer|offer of employment/i,
   },
   {
     status: "INTERVIEW",
     pattern:
-      /\binterview\b|virtual meeting|schedule.*call|phone screen|technical assessment|hiring manager/i,
+      /\binterview\b|virtual meeting|schedule.*call|phone screen|technical assessment|hiring manager|would like to invite you|next steps in the interview|moving you forward|next round|schedule.*interview|invitation to interview/i,
   },
   {
     status: "REJECTED",
     pattern:
-      /not.*moving forward|not selected|decided to move|other candidates|position.*filled|unfortunately.*not|we regret/i,
+      /not.*moving forward|not selected|decided to move|other candidates|position.*filled|unfortunately.*not|we regret|will not be moving forward|no longer considering|after careful consideration|decided not to move|position has been filled/i,
   },
   {
     status: "APPLIED",
     pattern:
-      /application received|thank you for applying|we.*received.*application|application.*submitted|received your application/i,
+      /application received|thank you for applying|we.*received.*application|application.*submitted|received your application|application confirmation|thank you for your application|we have received your|application is under review|successfully submitted/i,
   },
 ]
 
@@ -138,7 +183,7 @@ export function classifyWithRegex(subject: string, snippet: string): string | nu
   return null
 }
 
-// ─── Stage 2 & 3: AI classification ─────────────────────────────────────────
+// ─── Stage 2: AI classification ───────────────────────────────────────────────
 
 const BATCH_SIZE = 20
 
@@ -160,6 +205,9 @@ export async function classifyWithAI(emails: EmailInput[]): Promise<Classificati
 
 Return a JSON array only, no other text. Example:
 [{"messageId":"id1","company":"Acme","roleTitle":"Engineer","status":"APPLIED","location":"Remote"}]
+
+If an email is clearly NOT a job application (e.g. newsletter, promotional, personal message unrelated to jobs),
+omit it from the response array entirely — do not return an entry for it.
 
 Emails:
 ${JSON.stringify(batch.map((e) => ({ messageId: e.messageId, subject: e.subject, text: e.text })))}
@@ -235,12 +283,14 @@ export function classifyStage1(emails: EmailRaw[]): {
   return { classified, unclassified }
 }
 
-// ─── Stage 2+: AI (gracefully degrades to NEEDS_REVIEW if unavailable) ───────
+// ─── Stage 2: AI (gracefully degrades on AI failure) ─────────────────────────
 
-/** Runs Stage 2 (AI on snippet) and Stage 3 (AI on full body) for emails that
- *  Stage 1 could not classify. Falls back to NEEDS_REVIEW if AI is unavailable. */
+/** Runs Stage 2 (AI on snippet) for emails that Stage 1 could not classify.
+ *  Non-job emails omitted by AI are discarded. Falls back to subject extraction
+ *  if AI is unavailable, discarding emails that cannot be identified at all. */
 export async function classifyStage2Plus(
   emails: EmailInput[],
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   gmailClient: OAuth2Client
 ): Promise<ClassificationResult[]> {
   if (emails.length === 0) return []
@@ -250,64 +300,30 @@ export async function classifyStage2Plus(
   try {
     stage2Results = await classifyWithAI(emails)
   } catch {
-    // AI unavailable — mark all as NEEDS_REVIEW with best-effort extraction
-    return emails.map((e) => {
+    // AI unavailable — best-effort extraction, discard if nothing extractable
+    return emails.flatMap((e) => {
       const extracted = extractCompanyAndRole(e.subject)
-      return {
+      if (!extracted) return [] // discard — cannot identify this email
+      return [{
         messageId: e.messageId,
-        company: extracted?.company ?? "Unknown",
-        roleTitle: extracted?.roleTitle ?? "Unknown Role",
-        location: extracted?.location ?? null,
+        company: extracted.company,
+        roleTitle: extracted.roleTitle,
+        location: extracted.location ?? null,
         status: "NEEDS_REVIEW",
         date: e.date,
-      }
+      }]
     })
   }
 
   const results: ClassificationResult[] = []
-  const stage3Queue: Array<{ email: EmailInput; partial: ClassificationResult }> = []
 
   for (const res of stage2Results) {
-    if (res.status === "NEEDS_REVIEW" || !res.company || !res.roleTitle) {
-      const original = emails.find((e) => e.messageId === res.messageId)!
-      stage3Queue.push({ email: original, partial: res })
-    } else {
-      results.push(res)
-    }
+    // Discard if AI returned an entry with no company AND no roleTitle
+    if (!res.company && !res.roleTitle) continue
+    // Otherwise include as-is (partial data with NEEDS_REVIEW is fine)
+    results.push(res)
   }
 
-  if (stage3Queue.length === 0) return results
-
-  // Stage 3: Full body re-fetch + AI
-  const stage3Inputs: EmailInput[] = []
-  for (const { email } of stage3Queue) {
-    const bodyText = await fetchFullEmail(gmailClient, email.messageId)
-    stage3Inputs.push({
-      messageId: email.messageId,
-      subject: email.subject,
-      text: preprocessText(email.subject, bodyText),
-      date: email.date,
-    })
-  }
-
-  let stage3Results: ClassificationResult[]
-  try {
-    stage3Results = await classifyWithAI(stage3Inputs)
-  } catch {
-    stage3Results = stage3Queue.map(({ email, partial }) => {
-      const extracted = extractCompanyAndRole(email.subject)
-      return {
-        messageId: email.messageId,
-        company: partial.company || extracted?.company || "Unknown",
-        roleTitle: partial.roleTitle || extracted?.roleTitle || "Unknown Role",
-        location: partial.location ?? extracted?.location ?? null,
-        status: "NEEDS_REVIEW",
-        date: email.date,
-      }
-    })
-  }
-
-  results.push(...stage3Results)
   return results
 }
 
