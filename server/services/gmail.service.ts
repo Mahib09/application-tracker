@@ -77,8 +77,8 @@ export async function getGmailClient(userId: string): Promise<OAuth2Client> {
 // ─── Email fetch ─────────────────────────────────────────────────────────────
 
 const GMAIL_QUERY = [
-  "subject:(applied OR interview OR offer OR rejection OR congratulations OR assessment OR invitation)",
-  "OR from:(greenhouse.io OR lever.co OR workday.com OR ashby.com OR myworkdayjobs.com OR icims.com OR jobvite.com)",
+  "subject:(applied OR application OR interview OR offer OR rejection OR congratulations OR assessment OR invitation OR position OR candidate OR \"next steps\" OR decision OR \"thank you\" OR update OR role)",
+  "OR from:(greenhouse.io OR lever.co OR workday.com OR ashby.com OR myworkdayjobs.com OR icims.com OR jobvite.com OR smartrecruiters.com OR taleo.net OR successfactors.com OR bamboohr.com OR brassring.com OR jazz.co OR rippling.com OR dover.com OR pinpoint.com OR recruiting.com)",
 ].join(" ")
 
 export async function fetchEmailsSince(
@@ -110,7 +110,8 @@ export async function fetchEmailsSince(
     const getRes = await gmail.users.messages.get({
       userId: "me",
       id: msg.id,
-      format: "minimal",
+      format: "metadata",
+      metadataHeaders: ["Subject", "Date", "From"],
     })
 
     const data = getRes.data

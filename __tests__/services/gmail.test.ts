@@ -235,4 +235,43 @@ describe("fetchEmailsSince", () => {
     expect(query).toContain("interview")
     expect(query).toContain("greenhouse.io")
   })
+
+  it("includes expanded keywords and ATS domains in query", async () => {
+    mockMessagesList.mockResolvedValue({ data: { messages: [] } })
+
+    const { fetchEmailsSince } = await import("@/server/services/gmail.service")
+    await fetchEmailsSince(mockOAuth2Instance as any)
+
+    const query: string = mockMessagesList.mock.calls[0][0].q
+    expect(query).toContain("application")
+    expect(query).toContain("smartrecruiters.com")
+  })
+
+  it("calls messagesGet with format: metadata and metadataHeaders", async () => {
+    mockMessagesList.mockResolvedValue({
+      data: { messages: [{ id: "msg-2" }] },
+    })
+    mockMessagesGet.mockResolvedValue({
+      data: {
+        id: "msg-2",
+        snippet: "Your interview is scheduled",
+        payload: {
+          headers: [
+            { name: "Subject", value: "Interview scheduled at Acme" },
+            { name: "Date", value: "Tue, 11 Mar 2025 09:00:00 +0000" },
+          ],
+        },
+      },
+    })
+
+    const { fetchEmailsSince } = await import("@/server/services/gmail.service")
+    await fetchEmailsSince(mockOAuth2Instance as any)
+
+    expect(mockMessagesGet).toHaveBeenCalledWith(
+      expect.objectContaining({
+        format: "metadata",
+        metadataHeaders: ["Subject", "Date", "From"],
+      })
+    )
+  })
 })
