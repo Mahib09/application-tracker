@@ -208,17 +208,18 @@ export async function classifyWithAI(emails: EmailInput[]): Promise<Classificati
     const batch = emails.slice(i, i + BATCH_SIZE)
     const dateMap = new Map(batch.map((e) => [e.messageId, e.date]))
 
-    const prompt = `You are classifying job application emails. For each email, extract:
-- company: the company name (no location, just the name)
-- roleTitle: the job title only (no location, use "Unknown Role" if unclear)
+    const prompt = `You are extracting job application data from emails. For each email return:
+- company: the company name only (e.g. "Google", "Stripe"). Return null if unknown.
+- roleTitle: the job title only, concise (e.g. "Software Engineer", "Frontend Developer"). Return null if unknown. Never return a full sentence.
 - status: one of APPLIED | INTERVIEW | OFFER | REJECTED | GHOSTED | NEEDS_REVIEW
-- location: city/state, country, "Remote", "Hybrid", or null if unknown
+- location: city/country, "Remote", "Hybrid", or null
 
-Return a JSON array only, no other text. Example:
-[{"messageId":"id1","company":"Acme","roleTitle":"Engineer","status":"APPLIED","location":"Remote"}]
+Rules:
+- Return null for company or roleTitle if you cannot determine them — do not guess or use placeholder values.
+- Discard entirely (omit from response) if the email is: a calendar invite, meeting invitation, "application viewed" notification, out-of-office reply, referral email where no application was submitted, or newsletter.
+- Return a JSON array only, no other text.
 
-If an email is clearly NOT a job application (e.g. newsletter, promotional, personal message unrelated to jobs),
-omit it from the response array entirely — do not return an entry for it.
+Example: [{"messageId":"id1","company":"Acme","roleTitle":"Engineer","status":"APPLIED","location":"Remote"}]
 
 Emails:
 ${JSON.stringify(batch.map((e) => ({ messageId: e.messageId, subject: e.subject, text: e.text })))}
@@ -232,28 +233,32 @@ ${JSON.stringify(batch.map((e) => ({ messageId: e.messageId, subject: e.subject,
 
     const text = response.content.find((c) => c.type === "text")?.text ?? "[]"
 
-    let parsed: Array<{ messageId: string; company: string; roleTitle: string; status: string; location?: string | null }> =
+    let parsed: Array<{ messageId: string; company: string | null; roleTitle: string | null; status: string; location?: string | null }> =
       []
     try {
       // Extract JSON array from response (may have surrounding text)
       const jsonMatch = text.match(/\[[\s\S]*\]/)
-      parsed = jsonMatch ? JSON.parse(jsonMatch[0]) : []
+      if (!jsonMatch) throw new Error("No JSON array found in AI response")
+      parsed = JSON.parse(jsonMatch[0])
     } catch {
-      // If parse fails, all in batch remain unclassified (NEEDS_REVIEW)
-      parsed = batch.map((e) => ({
-        messageId: e.messageId,
-        company: "Unknown",
-        roleTitle: "Unknown Role",
-        status: "NEEDS_REVIEW",
-        location: null,
-      }))
+      // If parse fails, fall back to subject extraction for each email in batch
+      parsed = batch.map((e) => {
+        const extracted = extractCompanyAndRole(e.subject)
+        return {
+          messageId: e.messageId,
+          company: extracted?.company ?? "",
+          roleTitle: extracted?.roleTitle ?? "",
+          status: "NEEDS_REVIEW",
+          location: extracted?.location ?? null,
+        }
+      })
     }
 
     for (const item of parsed) {
       results.push({
         messageId: item.messageId,
-        company: item.company,
-        roleTitle: item.roleTitle,
+        company: item.company ?? "",
+        roleTitle: item.roleTitle ?? "",
         status: item.status,
         location: item.location ?? null,
         date: dateMap.get(item.messageId) ?? new Date(),

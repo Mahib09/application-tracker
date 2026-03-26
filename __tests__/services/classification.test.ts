@@ -232,6 +232,31 @@ describe("classifyWithAI", () => {
     expect(mockCreate).not.toHaveBeenCalled()
   })
 
+  it("returns empty company and roleTitle when AI returns null for those fields", async () => {
+    const aiResponse = JSON.stringify([
+      { messageId: "msg-1", company: null, roleTitle: null, status: "APPLIED", location: null },
+    ])
+    mockCreate.mockResolvedValue({ content: [{ type: "text", text: aiResponse }] })
+
+    const { classifyWithAI } = await import("@/server/services/classification.service")
+    const input = [{ messageId: "msg-1", subject: "Application received", text: "snippet", date: new Date() }]
+    const results = await classifyWithAI(input)
+
+    expect(results[0].company).toBe("")
+    expect(results[0].roleTitle).toBe("")
+  })
+
+  it("does not return Unknown or Unknown Role from parse failure fallback", async () => {
+    mockCreate.mockResolvedValue({ content: [{ type: "text", text: "not valid json {{{" }] })
+
+    const { classifyWithAI } = await import("@/server/services/classification.service")
+    const input = [{ messageId: "msg-1", subject: "Update", text: "snippet", date: new Date() }]
+    const results = await classifyWithAI(input)
+
+    expect(results[0].company).not.toBe("Unknown")
+    expect(results[0].roleTitle).not.toBe("Unknown Role")
+  })
+
   it("batches emails into groups of 20", async () => {
     const aiResponse = JSON.stringify(
       Array.from({ length: 25 }, (_, i) => ({
