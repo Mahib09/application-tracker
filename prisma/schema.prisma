@@ -40,6 +40,10 @@ model Application {
   location  String?
   notes     String?
 
+  confidence     Float?
+  manuallyEdited Boolean @default(false)
+  sourceEmailId  String?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -53,7 +57,13 @@ model SyncState {
   lastSyncedAt   DateTime?
   lastSyncStatus lastSyncStatus?
   lastSyncError  String?
-  updatedAt      DateTime        @updatedAt
+
+  emailsFetched    Int?
+  emailsClassified Int?
+  aiCallCount      Int?
+  sonnetCallCount  Int?
+
+  updatedAt DateTime @updatedAt
 }
 
 model OauthToken {
