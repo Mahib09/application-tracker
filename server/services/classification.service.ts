@@ -3,19 +3,21 @@ import type { OAuth2Client } from "google-auth-library"
 import { fetchFullEmail, type EmailRaw } from "@/server/services/gmail.service"
 
 export interface EmailInput {
-  messageId: string
-  subject: string
-  text: string
-  date: Date
+  messageId:   string
+  subject:     string
+  text:        string
+  date:        Date
+  companyHint: string | null
 }
 
 export interface ClassificationResult {
-  messageId: string
-  company: string
-  roleTitle: string
-  status: string
-  location: string | null
-  date: Date
+  messageId:   string
+  company:     string
+  roleTitle:   string
+  status:      string
+  location:    string | null
+  date:        Date
+  confidence?: number
 }
 
 // ─── Text preprocessing ──────────────────────────────────────────────────────
@@ -307,10 +309,11 @@ export function classifyStage1(emails: EmailRaw[]): {
       classified.push({ ...extracted, messageId: email.messageId, status, date: email.date })
     } else {
       unclassified.push({
-        messageId: email.messageId,
-        subject: email.subject,
-        text: email.snippet,
-        date: email.date,
+        messageId:   email.messageId,
+        subject:     email.subject,
+        text:        email.snippet,
+        date:        email.date,
+        companyHint: null,
       })
     }
   }
@@ -374,10 +377,11 @@ export async function classifyStage2Plus(
     try {
       const bodyText = await fetchFullEmail(gmailClient, input.messageId)
       stage3Inputs.push({
-        messageId: input.messageId,
-        subject: input.subject,
-        text: preprocessText("", bodyText, "body"),
-        date: input.date,
+        messageId:   input.messageId,
+        subject:     input.subject,
+        text:        preprocessText("", bodyText, "body"),
+        date:        input.date,
+        companyHint: null,
       })
     } catch {
       // If body fetch fails, keep partial Stage 2 result as NEEDS_REVIEW

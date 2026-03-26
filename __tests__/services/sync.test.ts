@@ -224,7 +224,7 @@ describe("syncApplications — application upsert", () => {
 
   it("creates application with NEEDS_REVIEW from Stage 2 fallback", async () => {
     vi.mocked(classifyStage1).mockReturnValue({ classified: [], unclassified: [
-      { messageId: "m1", subject: "Some email", text: "snippet", date: NOW },
+      { messageId: "m1", subject: "Some email", text: "snippet", date: NOW, companyHint: null },
     ]})
     vi.mocked(classifyStage2Plus).mockResolvedValue([
       { messageId: "m1", company: "Acme Corp", roleTitle: "Engineer", status: "NEEDS_REVIEW", date: NOW, location: null },

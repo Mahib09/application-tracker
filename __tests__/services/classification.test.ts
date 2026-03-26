@@ -235,7 +235,7 @@ describe("classifyWithAI", () => {
     })
 
     const { classifyWithAI } = await import("@/server/services/classification.service")
-    const input = [{ messageId: "msg-1", subject: "Application received", text: "We got your app", date: new Date() }]
+    const input = [{ messageId: "msg-1", subject: "Application received", text: "We got your app", date: new Date(), companyHint: null }]
     const results = await classifyWithAI(input)
 
     expect(mockCreate).toHaveBeenCalledOnce()
@@ -257,7 +257,7 @@ describe("classifyWithAI", () => {
     mockCreate.mockResolvedValue({ content: [{ type: "text", text: aiResponse }] })
 
     const { classifyWithAI } = await import("@/server/services/classification.service")
-    const input = [{ messageId: "msg-1", subject: "Application received", text: "snippet", date: new Date() }]
+    const input = [{ messageId: "msg-1", subject: "Application received", text: "snippet", date: new Date(), companyHint: null }]
     const results = await classifyWithAI(input)
 
     expect(results[0].company).toBe("")
@@ -268,7 +268,7 @@ describe("classifyWithAI", () => {
     mockCreate.mockResolvedValue({ content: [{ type: "text", text: "not valid json {{{" }] })
 
     const { classifyWithAI } = await import("@/server/services/classification.service")
-    const input = [{ messageId: "msg-1", subject: "Update", text: "snippet", date: new Date() }]
+    const input = [{ messageId: "msg-1", subject: "Update", text: "snippet", date: new Date(), companyHint: null }]
     const results = await classifyWithAI(input)
 
     expect(results[0].company).not.toBe("Unknown")
@@ -293,6 +293,7 @@ describe("classifyWithAI", () => {
       subject: "Application",
       text: "received",
       date: new Date(),
+      companyHint: null,
     }))
     await classifyWithAI(input)
 
