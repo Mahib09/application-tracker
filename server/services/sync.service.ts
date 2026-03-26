@@ -14,27 +14,6 @@ export interface SyncResult {
 const COOLDOWN_MS = 15 * 60 * 1000 // 15 minutes
 const GHOSTED_AFTER_MS = 30 * 24 * 60 * 60 * 1000 // 30 days
 
-// ─── Status upgrade logic ────────────────────────────────────────────────────
-
-const STATUS_PRIORITY: Record<string, number> = {
-  NEEDS_REVIEW: 0,
-  GHOSTED: 1,
-  APPLIED: 2,
-  INTERVIEW: 3,
-  OFFER: 4,
-}
-
-function shouldUpgradeStatus(existing: string, incoming: string): boolean {
-  // OFFER is terminal positive — never override
-  if (existing === "OFFER") return false
-  // REJECTED always wins (terminal negative state)
-  if (incoming === "REJECTED") return true
-  // NEEDS_REVIEW never downgrades a real classification
-  if (incoming === "NEEDS_REVIEW") return false
-  // Otherwise upgrade only, never downgrade
-  return (STATUS_PRIORITY[incoming] ?? -1) > (STATUS_PRIORITY[existing] ?? -1)
-}
-
 // ─── Upsert helper ───────────────────────────────────────────────────────────
 
 async function upsertResult(
@@ -42,14 +21,22 @@ async function upsertResult(
   result: ClassificationResult,
 ): Promise<"created" | "updated" | "skipped"> {
   const existing = await prisma.application.findFirst({
-    where: { userId, company: result.company, roleTitle: result.roleTitle },
+    where: {
+      userId,
+      company: { equals: result.company, mode: "insensitive" },
+      roleTitle: { equals: result.roleTitle, mode: "insensitive" },
+    },
   })
 
   if (existing) {
-    if (shouldUpgradeStatus(existing.status as string, result.status)) {
+    if (result.date > existing.appliedAt) {
       await prisma.application.update({
         where: { id: existing.id },
-        data: { status: result.status as any },
+        data: {
+          status: result.status as any,
+          appliedAt: result.date,
+          location: result.location ?? existing.location,
+        },
       })
       return "updated"
     }

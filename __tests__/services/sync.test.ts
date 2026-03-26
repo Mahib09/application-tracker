@@ -89,8 +89,8 @@ describe("syncApplications — token refresh", () => {
     vi.mocked(prisma.syncState.findUnique).mockResolvedValue(null)
     vi.mocked(classifyStage1).mockReturnValue({
       classified: [
-        { messageId: "m1", company: "Acme", roleTitle: "Engineer", status: "APPLIED", date: NOW },
-        { messageId: "m2", company: "Beta", roleTitle: "Designer", status: "INTERVIEW", date: NOW },
+        { messageId: "m1", company: "Acme", roleTitle: "Engineer", status: "APPLIED", date: NOW, location: null },
+        { messageId: "m2", company: "Beta", roleTitle: "Designer", status: "INTERVIEW", date: NOW, location: null },
       ],
       unclassified: [],
     })
@@ -114,7 +114,7 @@ describe("syncApplications — application upsert", () => {
 
   it("creates a new application when no existing record matches", async () => {
     vi.mocked(classifyStage1).mockReturnValue({
-      classified: [{ messageId: "m1", company: "Acme Corp", roleTitle: "Engineer", status: "APPLIED", date: NOW }],
+      classified: [{ messageId: "m1", company: "Acme Corp", roleTitle: "Engineer", status: "APPLIED", date: NOW, location: null }],
       unclassified: [],
     })
     vi.mocked(prisma.application.findFirst).mockResolvedValue(null)
@@ -132,46 +132,55 @@ describe("syncApplications — application upsert", () => {
     expect(result.updated).toBe(0)
   })
 
-  it("upgrades status when incoming has higher priority than existing", async () => {
+  it("updates status when incoming email is newer than existing record", async () => {
+    const olderDate = new Date(NOW.getTime() - 5 * 24 * 60 * 60 * 1000) // 5 days ago
     vi.mocked(classifyStage1).mockReturnValue({
-      classified: [{ messageId: "m1", company: "Acme Corp", roleTitle: "Engineer", status: "INTERVIEW", date: NOW }],
+      classified: [{ messageId: "m1", company: "Acme Corp", roleTitle: "Engineer", status: "INTERVIEW", date: NOW, location: null }],
       unclassified: [],
     })
-    vi.mocked(prisma.application.findFirst).mockResolvedValue({ id: "app-1", status: "APPLIED" } as any)
+    vi.mocked(prisma.application.findFirst).mockResolvedValue({
+      id: "app-1", status: "APPLIED", appliedAt: olderDate, location: null,
+    } as any)
     vi.mocked(prisma.application.update).mockResolvedValue({} as any)
 
     const { syncApplications } = await import("@/server/services/sync.service")
     const result = await syncApplications("user-1")
 
     expect(prisma.application.update).toHaveBeenCalledWith(
-      expect.objectContaining({ data: expect.objectContaining({ status: "INTERVIEW" }) })
+      expect.objectContaining({
+        data: expect.objectContaining({ status: "INTERVIEW", appliedAt: NOW }),
+      })
     )
     expect(result.updated).toBe(1)
-    expect(result.synced).toBe(0)
   })
 
-  it("does not downgrade status when existing has higher priority", async () => {
+  it("skips when incoming email is older than existing record", async () => {
+    const newerDate = new Date(NOW.getTime() + 5 * 24 * 60 * 60 * 1000) // 5 days in future
     vi.mocked(classifyStage1).mockReturnValue({
-      classified: [{ messageId: "m1", company: "Acme Corp", roleTitle: "Engineer", status: "APPLIED", date: NOW }],
+      classified: [{ messageId: "m1", company: "Acme Corp", roleTitle: "Engineer", status: "APPLIED", date: NOW, location: null }],
       unclassified: [],
     })
-    vi.mocked(prisma.application.findFirst).mockResolvedValue({ id: "app-1", status: "INTERVIEW" } as any)
+    vi.mocked(prisma.application.findFirst).mockResolvedValue({
+      id: "app-1", status: "INTERVIEW", appliedAt: newerDate, location: null,
+    } as any)
 
     const { syncApplications } = await import("@/server/services/sync.service")
     const result = await syncApplications("user-1")
 
     expect(prisma.application.update).not.toHaveBeenCalled()
-    expect(prisma.application.create).not.toHaveBeenCalled()
     expect(result.updated).toBe(0)
     expect(result.synced).toBe(0)
   })
 
-  it("REJECTED always overrides INTERVIEW", async () => {
+  it("newer REJECTED overrides existing INTERVIEW", async () => {
+    const olderDate = new Date(NOW.getTime() - 3 * 24 * 60 * 60 * 1000)
     vi.mocked(classifyStage1).mockReturnValue({
-      classified: [{ messageId: "m1", company: "Acme Corp", roleTitle: "Engineer", status: "REJECTED", date: NOW }],
+      classified: [{ messageId: "m1", company: "Acme Corp", roleTitle: "Engineer", status: "REJECTED", date: NOW, location: null }],
       unclassified: [],
     })
-    vi.mocked(prisma.application.findFirst).mockResolvedValue({ id: "app-1", status: "INTERVIEW" } as any)
+    vi.mocked(prisma.application.findFirst).mockResolvedValue({
+      id: "app-1", status: "INTERVIEW", appliedAt: olderDate, location: null,
+    } as any)
     vi.mocked(prisma.application.update).mockResolvedValue({} as any)
 
     const { syncApplications } = await import("@/server/services/sync.service")
@@ -183,17 +192,24 @@ describe("syncApplications — application upsert", () => {
     expect(result.updated).toBe(1)
   })
 
-  it("OFFER is never overridden by any status", async () => {
+  it("newer OFFER overrides existing INTERVIEW", async () => {
+    const olderDate = new Date(NOW.getTime() - 2 * 24 * 60 * 60 * 1000)
     vi.mocked(classifyStage1).mockReturnValue({
-      classified: [{ messageId: "m1", company: "Acme Corp", roleTitle: "Engineer", status: "REJECTED", date: NOW }],
+      classified: [{ messageId: "m1", company: "Acme Corp", roleTitle: "Engineer", status: "OFFER", date: NOW, location: null }],
       unclassified: [],
     })
-    vi.mocked(prisma.application.findFirst).mockResolvedValue({ id: "app-1", status: "OFFER" } as any)
+    vi.mocked(prisma.application.findFirst).mockResolvedValue({
+      id: "app-1", status: "INTERVIEW", appliedAt: olderDate, location: null,
+    } as any)
+    vi.mocked(prisma.application.update).mockResolvedValue({} as any)
 
     const { syncApplications } = await import("@/server/services/sync.service")
-    await syncApplications("user-1")
+    const result = await syncApplications("user-1")
 
-    expect(prisma.application.update).not.toHaveBeenCalled()
+    expect(prisma.application.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ status: "OFFER" }) })
+    )
+    expect(result.updated).toBe(1)
   })
 
   it("creates application with NEEDS_REVIEW from Stage 2 fallback", async () => {
@@ -201,7 +217,7 @@ describe("syncApplications — application upsert", () => {
       { messageId: "m1", subject: "Some email", text: "snippet", date: NOW },
     ]})
     vi.mocked(classifyStage2Plus).mockResolvedValue([
-      { messageId: "m1", company: "Acme Corp", roleTitle: "Engineer", status: "NEEDS_REVIEW", date: NOW },
+      { messageId: "m1", company: "Acme Corp", roleTitle: "Engineer", status: "NEEDS_REVIEW", date: NOW, location: null },
     ])
     vi.mocked(prisma.application.findFirst).mockResolvedValue(null)
     vi.mocked(prisma.application.create).mockResolvedValue({} as any)
