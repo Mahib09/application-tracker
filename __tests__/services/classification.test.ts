@@ -145,6 +145,19 @@ describe("extractCompanyAndRole", () => {
     const result = extractCompanyAndRole("Google has received your application")
     expect(result).toMatchObject({ company: "Google", roleTitle: "Unknown Role" })
   })
+
+  it("returns null when dash pattern produces a role with more than 6 words", async () => {
+    const { extractCompanyAndRole } = await import("@/server/services/classification.service")
+    // "Thank You for Your Interest in the Fullstack Engineer Opportunity" = 10 words
+    const result = extractCompanyAndRole("MLSE - Thank You for Your Interest in the Fullstack Engineer Opportunity")
+    expect(result).toBeNull()
+  })
+
+  it("still extracts correctly when dash pattern role is 6 words or fewer", async () => {
+    const { extractCompanyAndRole } = await import("@/server/services/classification.service")
+    const result = extractCompanyAndRole("Acme Corp - Senior Software Engineer")
+    expect(result).toMatchObject({ company: "Acme Corp", roleTitle: "Senior Software Engineer" })
+  })
 })
 
 // ─── classifyWithRegex ───────────────────────────────────────────────────────

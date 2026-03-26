@@ -134,8 +134,11 @@ export function extractCompanyAndRole(
     // "Company - Role" or "Company: Role"
     m = s.match(/^(.+?)\s*[-:]\s*(.+)$/)
     if (m) {
+      const candidateRole = m[2].trim()
+      // Guard: if the role portion is more than 6 words it's a sentence, not a title
+      if (candidateRole.split(/\s+/).length > 6) return null
       companyRaw = m[1].trim()
-      roleRaw = m[2].trim()
+      roleRaw = candidateRole
     } else {
       // "Your application to/for Company"
       m = s.match(/your application (?:to|for)\s+(.+)/i)
