@@ -108,7 +108,7 @@ export function extractCompanyAndRole(
 
   // "thank you for applying to <Company>"
   m = s.match(/thank you for applying to\s+(.+)/i)
-  if (m) return { company: m[1].trim(), roleTitle: "Unknown Role", location: null }
+  if (m) return { company: m[1].trim(), roleTitle: "", location: null }
 
   // "<Company> — <Role>" (em dash)
   m = s.match(/^(.+?)\s*—\s*(.+)$/)
@@ -123,7 +123,7 @@ export function extractCompanyAndRole(
 
   // "<Company> has received your"
   m = s.match(/^(.+?)\s+has received your/i)
-  if (m) return { company: m[1].trim(), roleTitle: "Unknown Role", location: null }
+  if (m) return { company: m[1].trim(), roleTitle: "", location: null }
 
   // "Role at Company"
   m = s.match(/^(.+?)\s+at\s+(.+)$/i)
@@ -142,11 +142,11 @@ export function extractCompanyAndRole(
     } else {
       // "Your application to/for Company"
       m = s.match(/your application (?:to|for)\s+(.+)/i)
-      if (m) return { company: m[1].trim(), roleTitle: "Unknown Role", location: null }
+      if (m) return { company: m[1].trim(), roleTitle: "", location: null }
 
       // "Application to/for Company"
       m = s.match(/application (?:to|for)\s+(.+)/i)
-      if (m) return { company: m[1].trim(), roleTitle: "Unknown Role", location: null }
+      if (m) return { company: m[1].trim(), roleTitle: "", location: null }
 
       return null
     }
@@ -360,7 +360,7 @@ export async function classifyStage2Plus(
       stage3Inputs.push({
         messageId: input.messageId,
         subject: input.subject,
-        text: preprocessText(input.subject, bodyText, "body"),
+        text: preprocessText("", bodyText, "body"),
         date: input.date,
       })
     } catch {

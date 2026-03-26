@@ -106,7 +106,7 @@ describe("extractCompanyAndRole", () => {
   it("parses 'Your application to <Company>' pattern", async () => {
     const { extractCompanyAndRole } = await import("@/server/services/classification.service")
     const result = extractCompanyAndRole("Your application to Acme Corp")
-    expect(result).toMatchObject({ company: "Acme Corp", roleTitle: "Unknown Role" })
+    expect(result).toMatchObject({ company: "Acme Corp", roleTitle: "" })
   })
 
   it("returns null for unrecognized subject format", async () => {
@@ -130,7 +130,7 @@ describe("extractCompanyAndRole", () => {
   it("parses 'Thank you for applying to <Company>'", async () => {
     const { extractCompanyAndRole } = await import("@/server/services/classification.service")
     const result = extractCompanyAndRole("Thank you for applying to Stripe")
-    expect(result).toMatchObject({ company: "Stripe", roleTitle: "Unknown Role" })
+    expect(result).toMatchObject({ company: "Stripe", roleTitle: "" })
   })
 
   it("parses 'Interview for <Role> at <Company>'", async () => {
@@ -148,7 +148,7 @@ describe("extractCompanyAndRole", () => {
   it("parses '<Company> has received your'", async () => {
     const { extractCompanyAndRole } = await import("@/server/services/classification.service")
     const result = extractCompanyAndRole("Google has received your application")
-    expect(result).toMatchObject({ company: "Google", roleTitle: "Unknown Role" })
+    expect(result).toMatchObject({ company: "Google", roleTitle: "" })
   })
 
   it("returns null when dash pattern produces a role with more than 6 words", async () => {
