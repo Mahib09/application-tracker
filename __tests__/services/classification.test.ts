@@ -589,3 +589,73 @@ describe("sanitizeResult — artifact filtering", () => {
     expect(result.roleTitle).toBe("")
   })
 })
+
+describe("normalizeRoleTitle", () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  it("strips level qualifiers", async () => {
+    const { normalizeRoleTitle } = await import("@/server/services/classification.service")
+    expect(normalizeRoleTitle("Senior Software Engineer")).toBe("software engineer")
+    expect(normalizeRoleTitle("Junior Developer")).toBe("develop")
+    expect(normalizeRoleTitle("Lead Frontend Engineer")).toBe("frontend engineer")
+  })
+
+  it("strips employment type qualifiers", async () => {
+    const { normalizeRoleTitle } = await import("@/server/services/classification.service")
+    expect(normalizeRoleTitle("Software Engineer, New Grad")).toBe("software engineer")
+    expect(normalizeRoleTitle("Frontend Developer (Contract)")).toBe("frontend develop")
+  })
+
+  it("strips tech stack parentheticals", async () => {
+    const { normalizeRoleTitle } = await import("@/server/services/classification.service")
+    expect(normalizeRoleTitle("Full Stack Developer (React + Next.js)")).toBe("full stack develop")
+  })
+
+  it("normalizes developer/development to 'develop'", async () => {
+    const { normalizeRoleTitle } = await import("@/server/services/classification.service")
+    expect(normalizeRoleTitle("Software Developer")).toBe("software develop")
+    expect(normalizeRoleTitle("Frontend Development")).toBe("frontend develop")
+  })
+
+  it("normalizes engineering to 'engineer'", async () => {
+    const { normalizeRoleTitle } = await import("@/server/services/classification.service")
+    expect(normalizeRoleTitle("Software Engineering")).toBe("software engineer")
+  })
+
+  it("normalizes punctuation to spaces", async () => {
+    const { normalizeRoleTitle } = await import("@/server/services/classification.service")
+    expect(normalizeRoleTitle("Frontend/Mobile Developer")).toBe("frontend mobile develop")
+  })
+})
+
+describe("roleTitlesSimilar", () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  it("matches Float-style role title variations (≥60% Jaccard)", async () => {
+    const { roleTitlesSimilar } = await import("@/server/services/classification.service")
+    expect(
+      roleTitlesSimilar("Software Developer - Frontend / Mobile", "Frontend/Mobile Development (Senior)")
+    ).toBe(true)
+  })
+
+  it("matches same title with different level qualifiers", async () => {
+    const { roleTitlesSimilar } = await import("@/server/services/classification.service")
+    expect(roleTitlesSimilar("Senior Software Engineer", "Software Engineer")).toBe(true)
+  })
+
+  it("does NOT match distinct roles (Software Engineer vs Software Developer)", async () => {
+    const { roleTitlesSimilar } = await import("@/server/services/classification.service")
+    expect(roleTitlesSimilar("Software Engineer", "Software Developer")).toBe(false)
+  })
+
+  it("does NOT match Full Stack Engineer vs Full Stack Developer (50% overlap)", async () => {
+    const { roleTitlesSimilar } = await import("@/server/services/classification.service")
+    expect(roleTitlesSimilar("Full Stack Engineer", "Full Stack Developer")).toBe(false)
+  })
+
+  it("returns false when either title is empty", async () => {
+    const { roleTitlesSimilar } = await import("@/server/services/classification.service")
+    expect(roleTitlesSimilar("", "Software Engineer")).toBe(false)
+    expect(roleTitlesSimilar("Software Engineer", "")).toBe(false)
+  })
+})

@@ -453,6 +453,37 @@ export function sanitizeResult(result: ClassificationResult): ClassificationResu
   return { ...result, company, roleTitle }
 }
 
+// ─── Role title normalization (for deduplication matching, not storage) ────────
+
+export function normalizeRoleTitle(title: string): string {
+  let s = title.toLowerCase()
+  // Strip seniority / level qualifiers
+  s = s.replace(/\b(senior|junior|lead|staff|principal|sr|jr|entry[\s-]level|mid[\s-]level|associate|intermediate)\b/g, "")
+  // Strip employment type qualifiers
+  s = s.replace(/\b(contract|permanent|full[\s-]time|part[\s-]time|intern|internship|co[\s-]op|new\s+grad(?:uate)?)\b/g, "")
+  // Strip content in parentheses/brackets (tech stack, location qualifiers)
+  s = s.replace(/[\(\[][^\)\]]*[\)\]]/g, "")
+  // Normalize word-form variations for common job title roots
+  s = s.replace(/\bdevelop(?:er|ment|ing|ed)?\b/g, "develop")
+  s = s.replace(/\bengineer(?:ing)?\b/g, "engineer")
+  // Normalize punctuation to spaces
+  s = s.replace(/[-\/|,\.&+]/g, " ")
+  return s.replace(/\s+/g, " ").trim()
+}
+
+/** Returns true if two role titles at the same company are likely the same job.
+ *  Uses Jaccard similarity on normalized word sets (threshold ≥ 0.6).
+ *  Only meaningful when both titles are non-empty. */
+export function roleTitlesSimilar(a: string, b: string): boolean {
+  if (!a || !b) return false
+  const wordsA = new Set(normalizeRoleTitle(a).split(" ").filter((w) => w.length > 2))
+  const wordsB = new Set(normalizeRoleTitle(b).split(" ").filter((w) => w.length > 2))
+  if (wordsA.size === 0 || wordsB.size === 0) return false
+  const intersection = [...wordsA].filter((w) => wordsB.has(w)).length
+  const union = new Set([...wordsA, ...wordsB]).size
+  return intersection / union >= 0.6
+}
+
 // ─── Convenience wrapper (kept for backward compatibility) ────────────────────
 
 export async function classifyBatch(
