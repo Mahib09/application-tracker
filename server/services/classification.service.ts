@@ -3,20 +3,20 @@ import type { OAuth2Client } from "google-auth-library"
 import { fetchFullEmail, type EmailRaw } from "@/server/services/gmail.service"
 
 export interface EmailInput {
-  messageId:   string
-  subject:     string
-  text:        string
-  date:        Date
+  messageId: string
+  subject: string
+  text: string
+  date: Date
   companyHint: string | null
 }
 
 export interface ClassificationResult {
-  messageId:   string
-  company:     string
-  roleTitle:   string
-  status:      string
-  location:    string | null
-  date:        Date
+  messageId: string
+  company: string
+  roleTitle: string
+  status: string
+  location: string | null
+  date: Date
   confidence?: number
 }
 
