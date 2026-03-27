@@ -36,6 +36,10 @@ export function rescueRole(original: string): string | null {
   )
   if (!match) return null
   const rescued = match[1].trim()
+  // Reject single-word extractions — real job titles have 2+ words or known keywords
+  if (rescued.split(/\s+/).length < 2 && !/\b(engineer|developer|designer|analyst|manager|coordinator|specialist|consultant|architect|administrator|director)\b/i.test(rescued)) {
+    return null
+  }
   return isArtifactRoleTitle(rescued) ? null : rescued
 }
 

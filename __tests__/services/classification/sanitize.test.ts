@@ -25,6 +25,16 @@ describe("rescueRole", () => {
     const { rescueRole } = await import("@/server/services/classification/sanitize")
     expect(rescueRole("")).toBeNull()
   })
+
+  it("returns null for 'applying for the role' with no actual title", async () => {
+    const { rescueRole } = await import("@/server/services/classification/sanitize")
+    expect(rescueRole("Thank you for applying for the role")).toBeNull()
+  })
+
+  it("returns null for 'applying to the position' with no actual title", async () => {
+    const { rescueRole } = await import("@/server/services/classification/sanitize")
+    expect(rescueRole("We appreciate you applying to the position")).toBeNull()
+  })
 })
 
 describe("sanitizeResult — new behaviors", () => {
