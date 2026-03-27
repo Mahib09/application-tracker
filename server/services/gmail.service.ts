@@ -7,6 +7,48 @@ export interface EmailRaw {
   subject: string;
   snippet: string;
   date: Date;
+  from: string;
+  companyHint: string | null;
+  isATS: boolean;
+}
+
+// ─── From header parsing ──────────────────────────────────────────────────────
+
+const ATS_DOMAINS = new Set([
+  "greenhouse.io", "greenhouse-mail.io", "lever.co", "workday.com",
+  "myworkday.com", "ashby.com", "icims.com", "jobvite.com",
+  "smartrecruiters.com", "taleo.net", "breezy.hr", "bamboohr.com",
+  "successfactors.com", "oracle.com",
+]);
+
+const GENERIC_DOMAINS = new Set([
+  "gmail.com", "yahoo.com", "outlook.com", "hotmail.com", "icloud.com",
+]);
+
+export function parseFromHeader(from: string): { companyHint: string | null; isATS: boolean } {
+  const displayMatch = from.match(/^"?([^"<]+?)"?\s*<[^>]+>/);
+  const displayName = displayMatch?.[1]?.trim() ?? null;
+  const emailMatch = from.match(/<([^>]+)>/) ?? from.match(/\S+@\S+/);
+  const email = emailMatch?.[0]?.replace(/[<>]/g, "") ?? "";
+  const domain = email.split("@")[1]?.toLowerCase() ?? "";
+
+  const isATS = ATS_DOMAINS.has(domain);
+
+  if (isATS) {
+    if (!displayName) return { companyHint: null, isATS: true };
+    const hint = displayName
+      .replace(/\b(via|through|powered by|recruiting|talent|jobs|hr|careers)\b/gi, "")
+      .replace(/\s+/g, " ")
+      .trim();
+    return { companyHint: hint || null, isATS: true };
+  }
+
+  if (GENERIC_DOMAINS.has(domain)) return { companyHint: null, isATS: false };
+
+  const domainRoot = domain.split(".")[0] ?? "";
+  if (!domainRoot) return { companyHint: null, isATS: false };
+  const hint = domainRoot.charAt(0).toUpperCase() + domainRoot.slice(1);
+  return { companyHint: hint, isATS: false };
 }
 
 // ─── Body extraction ─────────────────────────────────────────────────────────
@@ -128,12 +170,17 @@ export async function fetchEmailsSince(
     const subject =
       headers.find((h) => h.name === "Subject")?.value ?? "(no subject)";
     const dateStr = headers.find((h) => h.name === "Date")?.value ?? "";
+    const fromHeader = headers.find((h: any) => h.name === "From")?.value ?? "";
+    const { companyHint, isATS } = parseFromHeader(fromHeader);
 
     emails.push({
       messageId: msg.id,
       subject,
       snippet: data.snippet ?? "",
       date: dateStr ? new Date(dateStr) : new Date(),
+      from: fromHeader,
+      companyHint,
+      isATS,
     });
   }
 

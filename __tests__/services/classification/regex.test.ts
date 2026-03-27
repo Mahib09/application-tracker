@@ -85,3 +85,40 @@ describe("classifyStage1 — sanitizeResult wiring", () => {
     expect(classified.every(r => r.confidence === 1.0)).toBe(true)
   })
 })
+
+describe("parseFromHeader", () => {
+  it("extracts company from ATS sender display name", async () => {
+    const { parseFromHeader } = await import("@/server/services/gmail.service")
+    const result = parseFromHeader("Qualifacts <qualifacts@myworkday.com>")
+    expect(result.companyHint).toBe("Qualifacts")
+    expect(result.isATS).toBe(true)
+  })
+
+  it("extracts company from non-ATS domain", async () => {
+    const { parseFromHeader } = await import("@/server/services/gmail.service")
+    const result = parseFromHeader("noreply@stripe.com")
+    expect(result.companyHint).toBe("Stripe")
+    expect(result.isATS).toBe(false)
+  })
+
+  it("returns null companyHint for generic domains", async () => {
+    const { parseFromHeader } = await import("@/server/services/gmail.service")
+    const result = parseFromHeader("someone@gmail.com")
+    expect(result.companyHint).toBeNull()
+    expect(result.isATS).toBe(false)
+  })
+
+  it("returns null companyHint for ATS with no display name", async () => {
+    const { parseFromHeader } = await import("@/server/services/gmail.service")
+    const result = parseFromHeader("donotreply@greenhouse-mail.io")
+    expect(result.companyHint).toBeNull()
+    expect(result.isATS).toBe(true)
+  })
+
+  it("strips noise words from ATS display name", async () => {
+    const { parseFromHeader } = await import("@/server/services/gmail.service")
+    const result = parseFromHeader("Amazon Jobs <noreply@myworkday.com>")
+    expect(result.companyHint).toBe("Amazon")
+    expect(result.isATS).toBe(true)
+  })
+})
