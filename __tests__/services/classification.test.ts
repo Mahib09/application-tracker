@@ -313,8 +313,8 @@ describe("classifyBatch", () => {
     const emails = [
       {
         messageId: "msg-1",
-        subject: "Your offer letter from Acme Corp - Software Engineer",
-        snippet: "Please review and sign",
+        subject: "Acme Corp - Software Engineer",
+        snippet: "offer letter attached — please review and sign",
         date: new Date(),
       },
     ]

@@ -1,6 +1,8 @@
 import Anthropic from "@anthropic-ai/sdk"
 import type { OAuth2Client } from "google-auth-library"
 import { fetchFullEmail, type EmailRaw } from "@/server/services/gmail.service"
+import { sanitizeResult } from "@/server/services/classification/sanitize"
+import { classifyStage1 } from "@/server/services/classification/regex"
 
 export interface EmailInput {
   messageId: string
@@ -276,14 +278,14 @@ ${JSON.stringify(batch.map((e) => ({ messageId: e.messageId, subject: e.subject,
     }
 
     for (const item of parsed) {
-      results.push({
+      results.push(sanitizeResult({
         messageId: item.messageId,
         company: item.company ?? "",
         roleTitle: item.roleTitle ?? "",
         status: item.status,
         location: item.location ?? null,
         date: dateMap.get(item.messageId) ?? new Date(),
-      })
+      }))
     }
   }
 
@@ -292,34 +294,7 @@ ${JSON.stringify(batch.map((e) => ({ messageId: e.messageId, subject: e.subject,
 
 // ─── Stage 1: Regex (synchronous, no external deps) ─────────────────────────
 
-/** Classifies emails using regex only. Returns classified results immediately
- *  and the emails that need AI (Stage 2+). */
-export function classifyStage1(emails: EmailRaw[]): {
-  classified: ClassificationResult[]
-  unclassified: EmailInput[]
-} {
-  const classified: ClassificationResult[] = []
-  const unclassified: EmailInput[] = []
-
-  for (const email of emails) {
-    const status = classifyWithRegex(email.subject, email.snippet)
-    const extracted = extractCompanyAndRole(email.subject)
-
-    if (status && extracted) {
-      classified.push({ ...extracted, messageId: email.messageId, status, date: email.date })
-    } else {
-      unclassified.push({
-        messageId:   email.messageId,
-        subject:     email.subject,
-        text:        email.snippet,
-        date:        email.date,
-        companyHint: null,
-      })
-    }
-  }
-
-  return { classified, unclassified }
-}
+export { classifyStage1 } from "@/server/services/classification/regex"
 
 // ─── Stage 2+3: AI (gracefully degrades on AI failure) ───────────────────────
 
@@ -342,14 +317,14 @@ export async function classifyStage2Plus(
     return emails.flatMap((e) => {
       const extracted = extractCompanyAndRole(e.subject)
       if (!extracted) return []
-      return [{
+      return [sanitizeResult({
         messageId: e.messageId,
         company: extracted.company,
         roleTitle: extracted.roleTitle,
         location: extracted.location ?? null,
         status: "NEEDS_REVIEW",
         date: e.date,
-      }]
+      })]
     })
   }
 
@@ -414,95 +389,27 @@ export async function classifyStage2Plus(
       continue
     }
     // Merge: prefer Stage 3 values, fall back to Stage 2 partial
-    resolved.push({
+    resolved.push(sanitizeResult({
       messageId: input.messageId,
       company: stage3Result.company || partial.company || "",
       roleTitle: stage3Result.roleTitle || partial.roleTitle || "",
       status: stage3Result.status,
       location: stage3Result.location ?? partial.location ?? null,
       date: input.date,
-    })
+    }))
   }
 
   return resolved
 }
 
-// ─── Output sanitization ─────────────────────────────────────────────────────
+// ─── Re-exports for backward compatibility ────────────────────────────────────
 
-export function isLikelyRoleTitle(str: string): boolean {
-  if (str.trim().split(/\s+/).length > 4) return true
-  if (/\([^)]+\)\s*$/.test(str)) return true
-  if (/\b(developer|engineer|designer|analyst|manager|coordinator|specialist|consultant|architect|administrator|director)\b\s*(\([^)]+\))?\s*$/i.test(str)) return true
-  return false
-}
-
-const ARTIFACT_ROLE_PATTERNS: RegExp[] = [
-  /^application\s+(confirmation|update|received|status|viewed|submitted|acknowledgement)$/i,
-  /^your\s+application$/i,
-  /^thank\s+you\s+for\s+(applying|your\s+application)$/i,
-]
-
-function isArtifactRoleTitle(roleTitle: string): boolean {
-  return ARTIFACT_ROLE_PATTERNS.some((p) => p.test(roleTitle.trim()))
-}
-
-/** Cleans up company and roleTitle fields before persisting. */
-export function sanitizeResult(result: ClassificationResult): ClassificationResult {
-  let company = result.company.trim().replace(/\s{2,}/g, " ").replace(/[!,.]+$/, "")
-  let roleTitle = result.roleTitle.trim().replace(/\s{2,}/g, " ").replace(/[!,.]+$/, "")
-
-  // Strip "role of" / "the role of" / "position of" prefix
-  roleTitle = roleTitle.replace(/^(?:the\s+)?(?:role|position)\s+of\s+/i, "")
-
-  // Clear numeric-only requisition numbers (e.g. "70471", "2024-70471")
-  if (/^\d[\d-]*\d$|^\d+$/.test(roleTitle.trim())) {
-    roleTitle = ""
-  }
-
-  // Clear artifact role titles (status-description phrases, not job titles)
-  if (isArtifactRoleTitle(roleTitle)) {
-    roleTitle = ""
-  }
-
-  // Swap company→roleTitle when company looks like a job title and role is empty
-  if (isLikelyRoleTitle(company) && roleTitle === "") {
-    roleTitle = company
-    company = ""
-  }
-
-  return { ...result, company, roleTitle }
-}
-
-// ─── Role title normalization (for deduplication matching, not storage) ────────
-
-export function normalizeRoleTitle(title: string): string {
-  let s = title.toLowerCase()
-  // Strip seniority / level qualifiers
-  s = s.replace(/\b(senior|junior|lead|staff|principal|sr|jr|entry[\s-]level|mid[\s-]level|associate|intermediate)\b/g, "")
-  // Strip employment type qualifiers
-  s = s.replace(/\b(contract|permanent|full[\s-]time|part[\s-]time|intern|internship|co[\s-]op|new\s+grad(?:uate)?)\b/g, "")
-  // Strip content in parentheses/brackets (tech stack, location qualifiers)
-  s = s.replace(/[\(\[][^\)\]]*[\)\]]/g, "")
-  // Normalize word-form variations for common job title roots
-  s = s.replace(/\bdevelop(?:er|ment|ing|ed)?\b/g, "develop")
-  s = s.replace(/\bengineer(?:ing)?\b/g, "engineer")
-  // Normalize punctuation to spaces
-  s = s.replace(/[-\/|,\.&+]/g, " ")
-  return s.replace(/\s+/g, " ").trim()
-}
-
-/** Returns true if two role titles at the same company are likely the same job.
- *  Uses Jaccard similarity on normalized word sets (threshold ≥ 0.6).
- *  Only meaningful when both titles are non-empty. */
-export function roleTitlesSimilar(a: string, b: string): boolean {
-  if (!a || !b) return false
-  const wordsA = new Set(normalizeRoleTitle(a).split(" ").filter((w) => w.length > 2))
-  const wordsB = new Set(normalizeRoleTitle(b).split(" ").filter((w) => w.length > 2))
-  if (wordsA.size === 0 || wordsB.size === 0) return false
-  const intersection = [...wordsA].filter((w) => wordsB.has(w)).length
-  const union = new Set([...wordsA, ...wordsB]).size
-  return intersection / union >= 0.6
-}
+export {
+  sanitizeResult,
+  isLikelyRoleTitle,
+  normalizeRoleTitle,
+  roleTitlesSimilar,
+} from "@/server/services/classification/sanitize"
 
 // ─── Convenience wrapper (kept for backward compatibility) ────────────────────
 
