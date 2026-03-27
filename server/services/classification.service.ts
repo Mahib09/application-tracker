@@ -1,8 +1,8 @@
 import Anthropic from "@anthropic-ai/sdk"
 import type { OAuth2Client } from "google-auth-library"
 import { fetchFullEmail, type EmailRaw } from "@/server/services/gmail.service"
-import { sanitizeResult } from "@/server/services/classification/sanitize"
-import { classifyStage1 } from "@/server/services/classification/regex"
+import { sanitizeResult, postProcess } from "@/server/services/classification/sanitize"
+import { classifyStage1, extractCompanyAndRole } from "@/server/services/classification/regex"
 
 export interface EmailInput {
   messageId: string
@@ -47,160 +47,6 @@ export function preprocessText(
   return combined.slice(0, limit)
 }
 
-// ─── Location extraction ──────────────────────────────────────────────────────
-
-const LOCATION_PATTERNS: RegExp[] = [
-  // Work type in brackets/parens: (Remote), [Hybrid], (Remote/Hybrid)
-  /\s*[\(\[](remote|hybrid|on-?site|in-?person|flexible)[^\)\]]*[\)\]]/gi,
-  // Work type standalone at end after separator: "- Remote", "| Hybrid", ", Remote"
-  /\s*[-|,]\s*(remote|hybrid|on-?site|in-?person|flexible)\s*$/gi,
-  // City/country at end: "- New York, NY", "| London, UK", "(Austin, TX)"
-  /\s*[\(\[,|\-]\s*[A-Z][a-zA-Z\s]{2,},\s*[A-Z]{2,3}[\)\]]?\s*$/g,
-]
-
-function extractLocation(str: string): { clean: string; location: string | null } {
-  let location: string | null = null
-  let clean = str
-
-  for (const pattern of LOCATION_PATTERNS) {
-    // Reset lastIndex for global regexes
-    pattern.lastIndex = 0
-    const match = clean.match(pattern)
-    if (match) {
-      location = match[0].replace(/^[\s\(\[,|\-]+|[\)\]]+$/g, "").trim()
-      clean = clean.replace(pattern, "").trim()
-      break
-    }
-  }
-
-  return { clean, location }
-}
-
-// ─── Company and role extraction ─────────────────────────────────────────────
-
-export function extractCompanyAndRole(
-  subject: string
-): { company: string; roleTitle: string; location: string | null } | null {
-  // Strip Re:/Fwd: prefixes before any pattern matching
-  const s = subject.replace(/^(re|fwd?):\s*/i, "").trim()
-
-  let roleRaw: string
-  let companyRaw: string
-  let m: RegExpMatchArray | null
-
-  // "interview for <Role> at <Company>" — most specific first
-  m = s.match(/interview for\s+(.+?)\s+at\s+(.+)/i)
-  if (m) {
-    roleRaw = m[1].trim()
-    companyRaw = m[2].trim()
-    const roleExtracted = extractLocation(roleRaw)
-    const companyExtracted = extractLocation(companyRaw)
-    const location = roleExtracted.location ?? companyExtracted.location
-    return { company: companyExtracted.clean, roleTitle: roleExtracted.clean, location }
-  }
-
-  // "for the <Role> [role|position] at <Company>"
-  m = s.match(/for the\s+(.+?)\s+(?:role\s+|position\s+)?at\s+(.+)/i)
-  if (m) {
-    roleRaw = m[1].trim()
-    companyRaw = m[2].trim()
-    const roleExtracted = extractLocation(roleRaw)
-    const companyExtracted = extractLocation(companyRaw)
-    const location = roleExtracted.location ?? companyExtracted.location
-    return { company: companyExtracted.clean, roleTitle: roleExtracted.clean, location }
-  }
-
-  // "thank you for applying to <Company>"
-  m = s.match(/thank you for applying to\s+(.+)/i)
-  if (m) return { company: m[1].trim(), roleTitle: "", location: null }
-
-  // "<Company> — <Role>" (em dash)
-  m = s.match(/^(.+?)\s*—\s*(.+)$/)
-  if (m) {
-    companyRaw = m[1].trim()
-    roleRaw = m[2].trim()
-    const roleExtracted = extractLocation(roleRaw)
-    const companyExtracted = extractLocation(companyRaw)
-    const location = roleExtracted.location ?? companyExtracted.location
-    return { company: companyExtracted.clean, roleTitle: roleExtracted.clean, location }
-  }
-
-  // "<Company> has received your"
-  m = s.match(/^(.+?)\s+has received your/i)
-  if (m) return { company: m[1].trim(), roleTitle: "", location: null }
-
-  // "Role at Company"
-  m = s.match(/^(.+?)\s+at\s+(.+)$/i)
-  if (m) {
-    roleRaw = m[1].trim()
-    companyRaw = m[2].trim()
-  } else {
-    // "Company - Role" or "Company: Role"
-    m = s.match(/^(.+?)\s*[-:]\s*(.+)$/)
-    if (m) {
-      const candidateRole = m[2].trim()
-      // Guard: if the role portion is more than 6 words it's a sentence, not a title
-      if (candidateRole.split(/\s+/).length > 6) return null
-      companyRaw = m[1].trim()
-      roleRaw = candidateRole
-    } else {
-      // "Your application to/for Company"
-      m = s.match(/your application (?:to|for)\s+(.+)/i)
-      if (m) return { company: m[1].trim(), roleTitle: "", location: null }
-
-      // "Application to/for Company"
-      m = s.match(/application (?:to|for)\s+(.+)/i)
-      if (m) return { company: m[1].trim(), roleTitle: "", location: null }
-
-      return null
-    }
-  }
-
-  // Strip location from role first, then company
-  const roleExtracted = extractLocation(roleRaw)
-  const companyExtracted = extractLocation(companyRaw)
-  const location = roleExtracted.location ?? companyExtracted.location
-
-  return {
-    company: companyExtracted.clean,
-    roleTitle: roleExtracted.clean,
-    location,
-  }
-}
-
-// ─── Stage 1: Regex classification ──────────────────────────────────────────
-
-const PATTERNS: Array<{ status: string; pattern: RegExp }> = [
-  {
-    status: "OFFER",
-    pattern:
-      /offer letter|pleased to offer|extend.*offer|congratulations.*offer|accepted.*position|we.*like to offer|we would like to offer|formal offer|offer of employment/i,
-  },
-  {
-    status: "INTERVIEW",
-    pattern:
-      /\binterview\b|virtual meeting|schedule.*call|phone screen|technical assessment|hiring manager|would like to invite you|next steps in the interview|moving you forward|next round|schedule.*interview|invitation to interview/i,
-  },
-  {
-    status: "REJECTED",
-    pattern:
-      /not.*moving forward|not selected|decided to move|other candidates|position.*filled|unfortunately.*not|we regret|will not be moving forward|no longer considering|after careful consideration|decided not to move|position has been filled/i,
-  },
-  {
-    status: "APPLIED",
-    pattern:
-      /application received|thank you for applying|we.*received.*application|application.*submitted|received your application|application confirmation|thank you for your application|we have received your|application is under review|successfully submitted/i,
-  },
-]
-
-export function classifyWithRegex(subject: string, snippet: string): string | null {
-  const combined = `${subject} ${snippet}`
-  for (const { status, pattern } of PATTERNS) {
-    if (pattern.test(combined)) return status
-  }
-  return null
-}
-
 // ─── Stage 2: AI classification ───────────────────────────────────────────────
 
 const BATCH_SIZE = 20
@@ -214,6 +60,7 @@ export async function classifyWithAI(emails: EmailInput[]): Promise<Classificati
   for (let i = 0; i < emails.length; i += BATCH_SIZE) {
     const batch = emails.slice(i, i + BATCH_SIZE)
     const dateMap = new Map(batch.map((e) => [e.messageId, e.date]))
+    const emailMap = new Map(batch.map((e) => [e.messageId, e]))
 
     const prompt = `You are extracting job application data from emails. For each email return:
 - company: the company name only (e.g. "Google", "Stripe"). Return null if unknown.
@@ -278,14 +125,15 @@ ${JSON.stringify(batch.map((e) => ({ messageId: e.messageId, subject: e.subject,
     }
 
     for (const item of parsed) {
-      results.push(sanitizeResult({
+      const inputEmail = emailMap.get(item.messageId) ?? { messageId: item.messageId, subject: "", text: "", date: new Date(), companyHint: null }
+      results.push(postProcess({
         messageId: item.messageId,
         company: item.company ?? "",
         roleTitle: item.roleTitle ?? "",
         status: item.status,
         location: item.location ?? null,
         date: dateMap.get(item.messageId) ?? new Date(),
-      }))
+      }, inputEmail))
     }
   }
 
@@ -294,7 +142,7 @@ ${JSON.stringify(batch.map((e) => ({ messageId: e.messageId, subject: e.subject,
 
 // ─── Stage 1: Regex (synchronous, no external deps) ─────────────────────────
 
-export { classifyStage1 } from "@/server/services/classification/regex"
+export { classifyStage1, classifyWithRegex, extractCompanyAndRole } from "@/server/services/classification/regex"
 
 // ─── Stage 2+3: AI (gracefully degrades on AI failure) ───────────────────────
 
@@ -389,14 +237,14 @@ export async function classifyStage2Plus(
       continue
     }
     // Merge: prefer Stage 3 values, fall back to Stage 2 partial
-    resolved.push(sanitizeResult({
+    resolved.push(postProcess({
       messageId: input.messageId,
       company: stage3Result.company || partial.company || "",
       roleTitle: stage3Result.roleTitle || partial.roleTitle || "",
       status: stage3Result.status,
       location: stage3Result.location ?? partial.location ?? null,
       date: input.date,
-    }))
+    }, input))
   }
 
   return resolved
