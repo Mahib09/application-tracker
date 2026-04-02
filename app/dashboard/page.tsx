@@ -6,6 +6,7 @@ import { applicationStatus } from "@/app/generated/prisma/enums"
 import StatsBar from "@/components/StatsBar"
 import ApplicationTable from "@/components/ApplicationTable"
 import SyncButton from "@/components/SyncButton"
+import DevResetButton from "@/components/DevResetButton"
 
 const COOLDOWN_MS = 15 * 60 * 1000
 
@@ -52,6 +53,8 @@ export default async function DashboardPage() {
       <div className="max-w-7xl mx-auto px-6 py-8">
         <StatsBar applications={applications} />
         <SyncButton lastSyncedAt={syncState?.lastSyncedAt ?? null} cooldownMs={cooldownMs} />
+        {/* DEV ONLY — remove before production */}
+        <DevResetButton />
         <ApplicationTable
           applications={applications}
           onStatusChange={handleStatusChange}
