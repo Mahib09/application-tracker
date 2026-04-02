@@ -87,6 +87,63 @@ describe("sanitizeResult — new behaviors", () => {
   })
 })
 
+describe("sanitizeResult — data quality guards", () => {
+  it("clears numeric-only company names", async () => {
+    const { sanitizeResult } = await import("@/server/services/classification/sanitize")
+    const result = sanitizeResult({
+      messageId: "m1", company: "4867314", roleTitle: "Software Engineer",
+      status: "APPLIED", location: null, date: new Date(),
+    })
+    expect(result.company).toBe("")
+  })
+
+  it("clears numeric company with dashes", async () => {
+    const { sanitizeResult } = await import("@/server/services/classification/sanitize")
+    const result = sanitizeResult({
+      messageId: "m1", company: "123-456", roleTitle: "Engineer",
+      status: "APPLIED", location: null, date: new Date(),
+    })
+    expect(result.company).toBe("")
+  })
+
+  it("clears domain-like company names", async () => {
+    const { sanitizeResult } = await import("@/server/services/classification/sanitize")
+    const result = sanitizeResult({
+      messageId: "m1", company: "stripe.io", roleTitle: "Software Engineer",
+      status: "APPLIED", location: null, date: new Date(),
+    })
+    expect(result.company).toBe("")
+  })
+
+  it("clears .com domain company names", async () => {
+    const { sanitizeResult } = await import("@/server/services/classification/sanitize")
+    const result = sanitizeResult({
+      messageId: "m1", company: "mycompany.com", roleTitle: "Engineer",
+      status: "APPLIED", location: null, date: new Date(),
+    })
+    expect(result.company).toBe("")
+  })
+
+  it("clears noreply-prefixed company names", async () => {
+    const { sanitizeResult } = await import("@/server/services/classification/sanitize")
+    const result = sanitizeResult({
+      messageId: "m1", company: "noreply WorkdayMyview", roleTitle: "Developer",
+      status: "APPLIED", location: null, date: new Date(),
+    })
+    expect(result.company).toBe("")
+  })
+
+  it("does NOT clear a real company that starts with numbers but has letters", async () => {
+    const { sanitizeResult } = await import("@/server/services/classification/sanitize")
+    const result = sanitizeResult({
+      messageId: "m1", company: "3M", roleTitle: "Engineer",
+      status: "APPLIED", location: null, date: new Date(),
+    })
+    // "3M" contains letters so should NOT be cleared
+    expect(result.company).toBe("3M")
+  })
+})
+
 describe("postProcess", () => {
   it("uses companyHint when company is empty after sanitize", async () => {
     const { postProcess } = await import("@/server/services/classification/sanitize")

@@ -15,17 +15,34 @@ export interface EmailRaw {
 // ─── From header parsing ──────────────────────────────────────────────────────
 
 const ATS_DOMAINS = new Set([
-  "greenhouse.io", "greenhouse-mail.io", "lever.co", "workday.com",
-  "myworkday.com", "ashby.com", "icims.com", "jobvite.com",
-  "smartrecruiters.com", "taleo.net", "breezy.hr", "bamboohr.com",
-  "successfactors.com", "oracle.com",
+  "greenhouse.io",
+  "greenhouse-mail.io",
+  "lever.co",
+  "workday.com",
+  "myworkday.com",
+  "ashby.com",
+  "icims.com",
+  "jobvite.com",
+  "smartrecruiters.com",
+  "taleo.net",
+  "breezy.hr",
+  "bamboohr.com",
+  "successfactors.com",
+  "oracle.com",
 ]);
 
 const GENERIC_DOMAINS = new Set([
-  "gmail.com", "yahoo.com", "outlook.com", "hotmail.com", "icloud.com",
+  "gmail.com",
+  "yahoo.com",
+  "outlook.com",
+  "hotmail.com",
+  "icloud.com",
 ]);
 
-export function parseFromHeader(from: string): { companyHint: string | null; isATS: boolean } {
+export function parseFromHeader(from: string): {
+  companyHint: string | null;
+  isATS: boolean;
+} {
   const displayMatch = from.match(/^"?([^"<]+?)"?\s*<[^>]+>/);
   const displayName = displayMatch?.[1]?.trim() ?? null;
   const emailMatch = from.match(/<([^>]+)>/) ?? from.match(/\S+@\S+/);
@@ -37,10 +54,22 @@ export function parseFromHeader(from: string): { companyHint: string | null; isA
   if (isATS) {
     if (!displayName) return { companyHint: null, isATS: true };
     const hint = displayName
-      .replace(/\b(via|through|powered by|recruiting|talent|jobs|hr|careers)\b/gi, "")
+      .replace(
+        /\b(via|through|powered by|recruiting|talent|jobs|hr|careers|noreply|no-reply|donotreply)\b/gi,
+        "",
+      )
       .replace(/\s+/g, " ")
       .trim();
-    return { companyHint: hint || null, isATS: true };
+    // If the remaining hint contains an ATS product name it's branding, not a company
+    const atsBrands = [
+      "workday", "myworkday", "greenhouse", "lever", "ashby",
+      "taleo", "icims", "jobvite", "smartrecruiters", "bamboohr",
+      "successfactors", "breezy",
+    ];
+    if (!hint || atsBrands.some((b) => hint.toLowerCase().includes(b))) {
+      return { companyHint: null, isATS: true };
+    }
+    return { companyHint: hint, isATS: true };
   }
 
   if (GENERIC_DOMAINS.has(domain)) return { companyHint: null, isATS: false };
@@ -71,10 +100,10 @@ export function extractBodyText(payload: any): string {
     Array.isArray(payload.parts)
   ) {
     // Prefer text/plain over text/html
-    const plain = payload.parts.find((p: any) => p.mimeType === "text/plain");
+    const plain = payload.parts.find((p: { mimeType?: string }) => p.mimeType === "text/plain");
     if (plain) return extractBodyText(plain);
     return payload.parts
-      .map((p: any) => extractBodyText(p))
+      .map((p: unknown) => extractBodyText(p))
       .join(" ")
       .trim();
   }
@@ -143,45 +172,62 @@ export async function fetchEmailsSince(
     query += ` after:${unixSeconds}`;
   }
 
-  const listRes = await gmail.users.messages.list({
-    userId: "me",
-    q: query,
-    maxResults: 100,
-  });
+  // Paginate through all pages of results
+  const messages: { id: string }[] = [];
+  let pageToken: string | undefined;
+  do {
+    const listRes = await gmail.users.messages.list({
+      userId: "me",
+      q: query,
+      maxResults: 500, // Gmail hard cap per page
+      ...(pageToken ? { pageToken } : {}),
+    });
+    const page = listRes.data.messages ?? [];
+    messages.push(...page.filter((m): m is { id: string } => !!m.id));
+    pageToken = listRes.data.nextPageToken ?? undefined;
+  } while (pageToken);
 
-  const messages = listRes.data.messages ?? [];
   if (messages.length === 0) return [];
 
+  // Fetch metadata in parallel chunks of 10
+  // (Gmail quota: 250 units/sec; messages.get = 5 units → 10 concurrent = 50 units/batch)
+  const CHUNK_SIZE = 10;
   const emails: EmailRaw[] = [];
 
-  for (const msg of messages) {
-    if (!msg.id) continue;
-
-    const getRes = await gmail.users.messages.get({
-      userId: "me",
-      id: msg.id,
-      format: "metadata",
-      metadataHeaders: ["Subject", "Date", "From"],
-    });
-
-    const data = getRes.data;
-    const headers = data.payload?.headers ?? [];
-
-    const subject =
-      headers.find((h) => h.name === "Subject")?.value ?? "(no subject)";
-    const dateStr = headers.find((h) => h.name === "Date")?.value ?? "";
-    const fromHeader = headers.find((h: any) => h.name === "From")?.value ?? "";
-    const { companyHint, isATS } = parseFromHeader(fromHeader);
-
-    emails.push({
-      messageId: msg.id,
-      subject,
-      snippet: data.snippet ?? "",
-      date: dateStr ? new Date(dateStr) : new Date(),
-      from: fromHeader,
-      companyHint,
-      isATS,
-    });
+  for (let i = 0; i < messages.length; i += CHUNK_SIZE) {
+    const chunk = messages.slice(i, i + CHUNK_SIZE);
+    const results = await Promise.all(
+      chunk.map(async (msg) => {
+        try {
+          const getRes = await gmail.users.messages.get({
+            userId: "me",
+            id: msg.id,
+            format: "metadata",
+            metadataHeaders: ["Subject", "Date", "From"],
+          });
+          const data = getRes.data;
+          const headers = data.payload?.headers ?? [];
+          const subject =
+            headers.find((h) => h.name === "Subject")?.value ?? "(no subject)";
+          const dateStr = headers.find((h) => h.name === "Date")?.value ?? "";
+          const fromHeader =
+            headers.find((h) => h.name === "From")?.value ?? "";
+          const { companyHint, isATS } = parseFromHeader(fromHeader);
+          return {
+            messageId: msg.id,
+            subject,
+            snippet: data.snippet ?? "",
+            date: dateStr ? new Date(dateStr) : new Date(),
+            from: fromHeader,
+            companyHint,
+            isATS,
+          } satisfies EmailRaw;
+        } catch {
+          return null;
+        }
+      }),
+    );
+    emails.push(...(results.filter(Boolean) as EmailRaw[]));
   }
 
   return emails;

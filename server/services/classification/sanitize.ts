@@ -80,6 +80,15 @@ export function sanitizeResult(result: ClassificationResult): ClassificationResu
     /,\s+(?!Inc\b|Ltd\b|LLC\b|Corp\b|Co\b|LLP\b)[A-Z][a-z]+\s*$/, ""
   )
 
+  // Clear numeric-only company names (ATS requisition IDs like "4867314", "123-456")
+  if (/^\d[\d\s-]*$/.test(company)) company = ""
+
+  // Clear domain-like company names ("stripe.io", "mycompany.com")
+  if (/^[\w-]+\.(com|io|co|net|org|ca|ai|app)\b/i.test(company)) company = ""
+
+  // Clear noreply/donotreply prefixed names ("noreply WorkdayMyview")
+  if (/^(noreply|no-reply|donotreply)\b/i.test(company)) company = ""
+
   // Strip "role of" / "position of" prefix
   roleTitle = roleTitle.replace(/^(?:the\s+)?(?:role|position)\s+of\s+/i, "")
 

@@ -1,18 +1,26 @@
-import { prisma } from "@/server/lib/prisma"
-import { getGmailClient, fetchEmailsSince } from "@/server/services/gmail.service"
-import { classifyStage1, classifyStage2Plus, roleTitlesSimilar, type ClassificationResult } from "@/server/services/classification.service"
+import { prisma } from "@/server/lib/prisma";
+import {
+  getGmailClient,
+  fetchEmailsSince,
+} from "@/server/services/gmail.service";
+import {
+  classifyStage1,
+  classifyStage2Plus,
+  roleTitlesSimilar,
+  type ClassificationResult,
+} from "@/server/services/classification.service";
 
 export interface SyncResult {
-  synced: number
-  updated: number
-  ghosted: number
-  skipped: boolean
-  cooldownMs: number
-  lastSyncedAt: Date
+  synced: number;
+  updated: number;
+  ghosted: number;
+  skipped: boolean;
+  cooldownMs: number;
+  lastSyncedAt: Date;
 }
 
-const COOLDOWN_MS = 15 * 60 * 1000 // 15 minutes
-const GHOSTED_AFTER_MS = 30 * 24 * 60 * 60 * 1000 // 30 days
+const COOLDOWN_MS = 15 * 60 * 1000; // 15 minutes
+const GHOSTED_AFTER_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 
 // ─── Upsert helper ───────────────────────────────────────────────────────────
 
@@ -28,9 +36,9 @@ const STATUS_PRIORITY: Record<string, number> = {
   GHOSTED: 3,
   APPLIED: 2,
   NEEDS_REVIEW: 1,
-}
+};
 
-const TERMINAL_STATUSES = new Set(["OFFER", "REJECTED"])
+const TERMINAL_STATUSES = new Set(["OFFER", "REJECTED"]);
 
 async function upsertResult(
   userId: string,
@@ -43,7 +51,7 @@ async function upsertResult(
       company: { equals: result.company, mode: "insensitive" },
       roleTitle: { equals: result.roleTitle, mode: "insensitive" },
     },
-  })
+  });
 
   // ── Tier 2: incoming has role, find existing with same company + empty role ──
   if (!existing && result.roleTitle !== "") {
@@ -54,7 +62,7 @@ async function upsertResult(
         roleTitle: { equals: "", mode: "insensitive" },
       },
       orderBy: { appliedAt: "desc" },
-    })
+    });
   }
 
   // ── Tier 2.5: same company, non-empty roles, normalized similarity ≥ 60% ────
@@ -66,8 +74,11 @@ async function upsertResult(
         NOT: { roleTitle: "" },
       },
       orderBy: { appliedAt: "desc" },
-    })
-    existing = candidates.find((c) => roleTitlesSimilar(c.roleTitle, result.roleTitle)) ?? null
+    });
+    existing =
+      candidates.find((c) =>
+        roleTitlesSimilar(c.roleTitle, result.roleTitle),
+      ) ?? null;
   }
 
   // ── Tier 3: incoming has no role — match most recent record for this company ─
@@ -78,35 +89,41 @@ async function upsertResult(
         company: { equals: result.company, mode: "insensitive" },
       },
       orderBy: { appliedAt: "desc" },
-    })
+    });
   }
 
   if (existing) {
-    const existingPriority = STATUS_PRIORITY[existing.status] ?? 0
-    const newPriority = STATUS_PRIORITY[result.status] ?? 0
+    const existingPriority = STATUS_PRIORITY[existing.status] ?? 0;
+    const newPriority = STATUS_PRIORITY[result.status] ?? 0;
 
     // Field enrichment: fill empty roleTitle and null location from incoming
     const enrichedRole =
-      existing.roleTitle === "" && result.roleTitle !== "" ? result.roleTitle : existing.roleTitle
+      existing.roleTitle === "" && result.roleTitle !== ""
+        ? result.roleTitle
+        : existing.roleTitle;
     const enrichedLocation =
-      existing.location === null && result.location !== null ? result.location : existing.location
+      existing.location === null && result.location !== null
+        ? result.location
+        : existing.location;
 
     // ── Terminal protection ────────────────────────────────────────────────────
     // OFFER is never overwritten. REJECTED yields only to OFFER.
     if (TERMINAL_STATUSES.has(existing.status)) {
       // Only REJECTED can yield — and only to OFFER. OFFER never yields to anything.
-      const isRejectedYieldingToOffer = existing.status === "REJECTED" && result.status === "OFFER"
+      const isRejectedYieldingToOffer =
+        existing.status === "REJECTED" && result.status === "OFFER";
       if (!isRejectedYieldingToOffer) {
         const hasEnrichment =
-          enrichedRole !== existing.roleTitle || enrichedLocation !== existing.location
+          enrichedRole !== existing.roleTitle ||
+          enrichedLocation !== existing.location;
         if (hasEnrichment) {
           await prisma.application.update({
             where: { id: existing.id },
             data: { roleTitle: enrichedRole, location: enrichedLocation },
-          })
-          return "updated"
+          });
+          return "updated";
         }
-        return "skipped"
+        return "skipped";
       }
       // REJECTED → OFFER falls through to normal update logic below
     }
@@ -114,19 +131,20 @@ async function upsertResult(
     // ── Status update condition ───────────────────────────────────────────────
     const shouldUpdateStatus =
       newPriority > existingPriority ||
-      (newPriority === existingPriority && result.date > existing.appliedAt)
+      (newPriority === existingPriority && result.date > existing.appliedAt);
 
     // Only advance appliedAt when the status is also advancing — prevents a late
     // APPLIED auto-reply from updating the date on an INTERVIEW/REJECTED record
-    const shouldUpdateDate = shouldUpdateStatus && result.date > existing.appliedAt
+    const shouldUpdateDate =
+      shouldUpdateStatus && result.date > existing.appliedAt;
 
     const hasChanges =
       shouldUpdateStatus ||
       shouldUpdateDate ||
       enrichedRole !== existing.roleTitle ||
-      enrichedLocation !== existing.location
+      enrichedLocation !== existing.location;
 
-    if (!hasChanges) return "skipped"
+    if (!hasChanges) return "skipped";
 
     await prisma.application.update({
       where: { id: existing.id },
@@ -136,8 +154,8 @@ async function upsertResult(
         roleTitle: enrichedRole,
         location: enrichedLocation,
       },
-    })
-    return "updated"
+    });
+    return "updated";
   }
 
   // ── No match: create new record ───────────────────────────────────────────────
@@ -151,20 +169,55 @@ async function upsertResult(
       appliedAt: result.date,
       location: result.location ?? null,
     },
+  });
+  return "created";
+}
+
+// ─── Full resync ─────────────────────────────────────────────────────────────
+
+export interface FullResyncResult {
+  synced: number
+  updated: number
+  ghosted: number
+  deleted: number
+  lastSyncedAt: Date
+}
+
+export async function fullResync(userId: string): Promise<FullResyncResult> {
+  // 1. Delete all GMAIL-sourced applications for this user
+  const { count: deleted } = await prisma.application.deleteMany({
+    where: { userId, source: "GMAIL" as any },
   })
-  return "created"
+
+  // 2. Clear SyncState so cooldown doesn't block the immediate re-sync
+  await prisma.syncState.upsert({
+    where: { userId },
+    update: { lastSyncedAt: null, lastSyncStatus: "SUCCESS" as any, lastSyncError: null },
+    create: { userId, lastSyncStatus: "SUCCESS" as any },
+  })
+
+  // 3. Full sync from scratch (lastSyncedAt=null → uses full 1-year lookback)
+  const result = await syncApplications(userId)
+
+  return {
+    synced: result.synced,
+    updated: result.updated,
+    ghosted: result.ghosted,
+    deleted,
+    lastSyncedAt: result.lastSyncedAt,
+  }
 }
 
 // ─── Main sync ───────────────────────────────────────────────────────────────
 
 export async function syncApplications(userId: string): Promise<SyncResult> {
   // 1. Load SyncState
-  const syncState = await prisma.syncState.findUnique({ where: { userId } })
-  const lastSyncedAt = syncState?.lastSyncedAt ?? null
+  const syncState = await prisma.syncState.findUnique({ where: { userId } });
+  const lastSyncedAt = syncState?.lastSyncedAt ?? null;
 
   // 2. Cooldown check
   if (lastSyncedAt) {
-    const elapsed = Date.now() - lastSyncedAt.getTime()
+    const elapsed = Date.now() - lastSyncedAt.getTime();
     if (elapsed < COOLDOWN_MS) {
       return {
         skipped: true,
@@ -173,39 +226,42 @@ export async function syncApplications(userId: string): Promise<SyncResult> {
         updated: 0,
         ghosted: 0,
         lastSyncedAt,
-      }
+      };
     }
   }
 
-  const now = new Date()
+  const now = new Date();
 
   try {
     // 3. Refresh token once at sync start
-    const gmailClient = await getGmailClient(userId)
+    const gmailClient = await getGmailClient(userId);
 
     // 4. Fetch emails — never look back more than 3 months
-    const THREE_MONTHS_MS = 90 * 24 * 60 * 60 * 1000
-    const threeMonthsAgo = new Date(Date.now() - THREE_MONTHS_MS)
-    const fetchSince = lastSyncedAt && lastSyncedAt > threeMonthsAgo ? lastSyncedAt : threeMonthsAgo
-    const emails = await fetchEmailsSince(gmailClient, fetchSince)
+    const THREE_MONTHS_MS = 365 * 24 * 60 * 60 * 1000;
+    const threeMonthsAgo = new Date(Date.now() - THREE_MONTHS_MS);
+    const fetchSince =
+      lastSyncedAt && lastSyncedAt > threeMonthsAgo
+        ? lastSyncedAt
+        : threeMonthsAgo;
+    const emails = await fetchEmailsSince(gmailClient, fetchSince);
 
-    let synced = 0
-    let updated = 0
+    let synced = 0;
+    let updated = 0;
 
     // 5. Stage 1: regex classify — persist immediately, no AI dependency
-    const { classified: stage1Results, unclassified } = classifyStage1(emails)
+    const { classified: stage1Results, unclassified } = classifyStage1(emails);
     for (const result of stage1Results) {
-      const r = await upsertResult(userId, result)
-      if (r === "created") synced++
-      else if (r === "updated") updated++
+      const r = await upsertResult(userId, result);
+      if (r === "created") synced++;
+      else if (r === "updated") updated++;
     }
 
     // 6. Stage 2+: AI classify remaining — persist as results arrive
-    const stage2Results = await classifyStage2Plus(unclassified, gmailClient)
+    const stage2Results = await classifyStage2Plus(unclassified, gmailClient);
     for (const result of stage2Results) {
-      const r = await upsertResult(userId, result)
-      if (r === "created") synced++
-      else if (r === "updated") updated++
+      const r = await upsertResult(userId, result);
+      if (r === "created") synced++;
+      else if (r === "updated") updated++;
     }
 
     // 7. GHOSTED sweep — runs after new emails processed
@@ -217,26 +273,37 @@ export async function syncApplications(userId: string): Promise<SyncResult> {
         updatedAt: { lt: new Date(Date.now() - GHOSTED_AFTER_MS) },
       },
       data: { status: "GHOSTED" as any },
-    })
-    const ghosted = ghostedResult.count
+    });
+    const ghosted = ghostedResult.count;
 
     // 8. Update SyncState to SUCCESS
     await prisma.syncState.upsert({
       where: { userId },
-      update: { lastSyncedAt: now, lastSyncStatus: "SUCCESS" as any, lastSyncError: null },
+      update: {
+        lastSyncedAt: now,
+        lastSyncStatus: "SUCCESS" as any,
+        lastSyncError: null,
+      },
       create: { userId, lastSyncedAt: now, lastSyncStatus: "SUCCESS" as any },
-    })
+    });
 
-    return { synced, updated, ghosted, skipped: false, cooldownMs: 0, lastSyncedAt: now }
+    return {
+      synced,
+      updated,
+      ghosted,
+      skipped: false,
+      cooldownMs: 0,
+      lastSyncedAt: now,
+    };
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error)
+    const message = error instanceof Error ? error.message : String(error);
 
     await prisma.syncState.upsert({
       where: { userId },
       update: { lastSyncStatus: "FAIL" as any, lastSyncError: message },
       create: { userId, lastSyncStatus: "FAIL" as any, lastSyncError: message },
-    })
+    });
 
-    throw error
+    throw error;
   }
 }

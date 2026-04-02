@@ -274,4 +274,79 @@ describe("fetchEmailsSince", () => {
       })
     )
   })
+
+  it("follows nextPageToken to fetch all pages", async () => {
+    // Page 1: 3 messages + nextPageToken
+    mockMessagesList
+      .mockResolvedValueOnce({
+        data: {
+          messages: [{ id: "p1-1" }, { id: "p1-2" }, { id: "p1-3" }],
+          nextPageToken: "token-page2",
+        },
+      })
+      // Page 2: 2 messages, no nextPageToken (last page)
+      .mockResolvedValueOnce({
+        data: {
+          messages: [{ id: "p2-1" }, { id: "p2-2" }],
+        },
+      })
+
+    const makeGetResponse = (id: string) => ({
+      data: {
+        id,
+        snippet: "snippet",
+        payload: {
+          headers: [
+            { name: "Subject", value: "Job application" },
+            { name: "Date", value: "Mon, 10 Mar 2025 10:00:00 +0000" },
+            { name: "From", value: "jobs@company.com" },
+          ],
+        },
+      },
+    })
+    mockMessagesGet.mockImplementation(({ id }: { id: string }) =>
+      Promise.resolve(makeGetResponse(id))
+    )
+
+    const { fetchEmailsSince } = await import("@/server/services/gmail.service")
+    const results = await fetchEmailsSince(mockOAuth2Instance as any)
+
+    // All 5 messages across both pages returned
+    expect(results).toHaveLength(5)
+    expect(mockMessagesList).toHaveBeenCalledTimes(2)
+    // Second call uses the pageToken from page 1
+    expect(mockMessagesList).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ pageToken: "token-page2" })
+    )
+  })
+
+  it("fetches all message IDs in parallel chunks", async () => {
+    // 12 messages — should result in 2 chunks of 10 and 2
+    const ids = Array.from({ length: 12 }, (_, i) => ({ id: `msg-${i + 1}` }))
+    mockMessagesList.mockResolvedValue({ data: { messages: ids } })
+
+    const makeGetResponse = (id: string) => ({
+      data: {
+        id,
+        snippet: "snippet",
+        payload: {
+          headers: [
+            { name: "Subject", value: "Application received" },
+            { name: "Date", value: "Mon, 10 Mar 2025 10:00:00 +0000" },
+            { name: "From", value: "jobs@company.com" },
+          ],
+        },
+      },
+    })
+    mockMessagesGet.mockImplementation(({ id }: { id: string }) =>
+      Promise.resolve(makeGetResponse(id))
+    )
+
+    const { fetchEmailsSince } = await import("@/server/services/gmail.service")
+    const results = await fetchEmailsSince(mockOAuth2Instance as any)
+
+    expect(results).toHaveLength(12)
+    expect(mockMessagesGet).toHaveBeenCalledTimes(12)
+  })
 })

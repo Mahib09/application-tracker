@@ -2,13 +2,13 @@ import { sanitizeResult, isLikelyRoleTitle } from "@/server/services/classificat
 import type { ClassificationResult, EmailInput } from "@/server/services/classification.service"
 
 // Local type for inputs to classifyStage1
-// companyHint is optional here since gmail.service adds it in Task 5
 type EmailForStage1 = {
   messageId: string
   subject: string
   snippet: string
   date: Date
   companyHint?: string | null
+  isATS?: boolean
 }
 
 // ─── Status classification (regex) ───────────────────────────────────────────
@@ -153,9 +153,10 @@ export function extractCompanyAndRole(
 
 export function isValidExtraction(company: string, roleTitle: string): boolean {
   if (!company) return false
+  if (/^\d[\d\s-]*$/.test(company)) return false  // numeric-only (ATS requisition IDs)
   if (isLikelyRoleTitle(company)) return false
   if (company.trim().split(/\s+/).length > 4) return false
-  if (/^(application|thank|your|we )/i.test(company)) return false
+  if (/^(application|thank|your|we |our )/i.test(company)) return false
   if (roleTitle && roleTitle.trim().split(/\s+/).length > 8) return false
   if (roleTitle && roleTitle.includes("!")) return false
   return true
@@ -189,6 +190,7 @@ export function classifyStage1(emails: EmailForStage1[]): {
         text: email.snippet,
         date: email.date,
         companyHint: email.companyHint ?? null,
+        isATS: email.isATS ?? false,
       })
     }
   }

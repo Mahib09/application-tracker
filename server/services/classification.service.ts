@@ -10,6 +10,7 @@ export interface EmailInput {
   text: string
   date: Date
   companyHint: string | null
+  isATS: boolean
 }
 
 export interface ClassificationResult {
@@ -81,6 +82,7 @@ Rules:
 - If the email clearly signals a status (rejection, interview, offer) but company or roleTitle cannot be determined, still return the correct status with null for the unknown fields. Do NOT default to NEEDS_REVIEW when the status signal is unambiguous.
 - If the company field appears to be a job title (e.g. "Junior Developer", "Software Engineer") and no company name is present in the email, return company: null and put the title in roleTitle.
 - Discard entirely (omit from response) if the email is: a calendar invite, meeting invitation, "application viewed" notification, out-of-office reply, referral email where no application was submitted, or newsletter.
+- senderHint (if present): the likely company name extracted from the email sender — use as a strong hint but verify it appears consistent with the email content before using it as the company value.
 - Return a JSON array only, no other text.
 
 BAD examples (never do this):
@@ -92,7 +94,12 @@ GOOD examples:
   {"messageId":"id2","company":null,"roleTitle":"Junior Developer","status":"APPLIED"}
 
 Emails:
-${JSON.stringify(batch.map((e) => ({ messageId: e.messageId, subject: e.subject, text: e.text })))}
+${JSON.stringify(batch.map((e) => ({
+  messageId: e.messageId,
+  subject: e.subject,
+  text: e.text,
+  ...(e.companyHint ? { senderHint: e.companyHint } : {}),
+})))}
 `
 
     const response = await anthropic.messages.create({
@@ -125,7 +132,7 @@ ${JSON.stringify(batch.map((e) => ({ messageId: e.messageId, subject: e.subject,
     }
 
     for (const item of parsed) {
-      const inputEmail = emailMap.get(item.messageId) ?? { messageId: item.messageId, subject: "", text: "", date: new Date(), companyHint: null }
+      const inputEmail = emailMap.get(item.messageId) ?? { messageId: item.messageId, subject: "", text: "", date: new Date(), companyHint: null, isATS: false }
       results.push(postProcess({
         messageId: item.messageId,
         company: item.company ?? "",
@@ -180,13 +187,23 @@ export async function classifyStage2Plus(
   const stage3Queue: Array<{ input: EmailInput; partial: ClassificationResult }> = []
 
   for (const res of stage2Results) {
-    // Discard if AI returned nothing useful (both empty — not a job email)
-    if (!res.company && !res.roleTitle) continue
+    const original = emails.find((e) => e.messageId === res.messageId)
+
+    // Both empty from snippet: only try Stage 3 if there's a sender hint or ATS origin
+    // (emails with no hint and no company/role are truly non-job emails — discard)
+    if (!res.company && !res.roleTitle) {
+      if (original && (original.companyHint || original.isATS)) {
+        stage3Queue.push({
+          input: original,
+          partial: { ...res, company: original.companyHint ?? "" },
+        })
+      }
+      continue
+    }
 
     // Selective Stage 3: fetch full body if either company or role is still missing
     if (!res.company || !res.roleTitle) {
-      const original = emails.find((e) => e.messageId === res.messageId)!
-      stage3Queue.push({ input: original, partial: res })
+      stage3Queue.push({ input: original!, partial: res })
     } else {
       resolved.push(res)
     }
@@ -205,6 +222,7 @@ export async function classifyStage2Plus(
         text:        preprocessText("", bodyText, "body"),
         date:        input.date,
         companyHint: null,
+        isATS:       false,
       })
     } catch {
       // If body fetch fails, keep partial Stage 2 result as NEEDS_REVIEW

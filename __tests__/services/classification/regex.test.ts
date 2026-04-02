@@ -42,6 +42,16 @@ describe("isValidExtraction", () => {
     const { isValidExtraction } = await import("@/server/services/classification/regex")
     expect(isValidExtraction("HelloFresh", "")).toBe(true)
   })
+
+  it("returns false when company is numeric only", async () => {
+    const { isValidExtraction } = await import("@/server/services/classification/regex")
+    expect(isValidExtraction("70471", "Software Engineer")).toBe(false)
+  })
+
+  it("returns false when company starts with 'our '", async () => {
+    const { isValidExtraction } = await import("@/server/services/classification/regex")
+    expect(isValidExtraction("our Software Developer Role", "")).toBe(false)
+  })
 })
 
 describe("classifyStage1 — sanitizeResult wiring", () => {
@@ -119,6 +129,20 @@ describe("parseFromHeader", () => {
     const { parseFromHeader } = await import("@/server/services/gmail.service")
     const result = parseFromHeader("Amazon Jobs <noreply@myworkday.com>")
     expect(result.companyHint).toBe("Amazon")
+    expect(result.isATS).toBe(true)
+  })
+
+  it("returns null companyHint when ATS display name is just the ATS product name", async () => {
+    const { parseFromHeader } = await import("@/server/services/gmail.service")
+    const result = parseFromHeader("noreply WorkdayMyview <noreply@workday.com>")
+    expect(result.companyHint).toBeNull()
+    expect(result.isATS).toBe(true)
+  })
+
+  it("strips noreply from ATS display name and returns null if nothing remains", async () => {
+    const { parseFromHeader } = await import("@/server/services/gmail.service")
+    const result = parseFromHeader("noreply <noreply@greenhouse.io>")
+    expect(result.companyHint).toBeNull()
     expect(result.isATS).toBe(true)
   })
 })
