@@ -270,7 +270,7 @@ describe("fetchEmailsSince", () => {
     expect(mockMessagesGet).toHaveBeenCalledWith(
       expect.objectContaining({
         format: "metadata",
-        metadataHeaders: ["Subject", "Date", "From"],
+        metadataHeaders: ["Subject", "Date", "From", "List-Unsubscribe"],
       })
     )
   })
@@ -348,5 +348,103 @@ describe("fetchEmailsSince", () => {
 
     expect(results).toHaveLength(12)
     expect(mockMessagesGet).toHaveBeenCalledTimes(12)
+  })
+})
+
+describe("fetchEmailsSince — listUnsubscribe and labelIds", () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  it("parses List-Unsubscribe header into listUnsubscribe field", async () => {
+    mockMessagesList.mockResolvedValue({ data: { messages: [{ id: "msg-1" }] } })
+    mockMessagesGet.mockResolvedValue({
+      data: {
+        id: "msg-1",
+        snippet: "Unsubscribe from our list",
+        labelIds: [],
+        payload: {
+          headers: [
+            { name: "Subject", value: "Weekly digest" },
+            { name: "Date", value: "Mon, 10 Mar 2025 10:00:00 +0000" },
+            { name: "From", value: "news@company.com" },
+            { name: "List-Unsubscribe", value: "<https://company.com/unsub>" },
+          ],
+        },
+      },
+    })
+    const { fetchEmailsSince } = await import("@/server/services/gmail.service")
+    const results = await fetchEmailsSince(mockOAuth2Instance as any)
+    expect(results[0].listUnsubscribe).toBe("<https://company.com/unsub>")
+  })
+
+  it("sets listUnsubscribe to null when header is absent", async () => {
+    mockMessagesList.mockResolvedValue({ data: { messages: [{ id: "msg-2" }] } })
+    mockMessagesGet.mockResolvedValue({
+      data: {
+        id: "msg-2",
+        snippet: "Your interview is scheduled",
+        labelIds: ["INBOX"],
+        payload: {
+          headers: [
+            { name: "Subject", value: "Interview at Acme" },
+            { name: "Date", value: "Mon, 10 Mar 2025 10:00:00 +0000" },
+            { name: "From", value: "hr@acme.com" },
+          ],
+        },
+      },
+    })
+    const { fetchEmailsSince } = await import("@/server/services/gmail.service")
+    const results = await fetchEmailsSince(mockOAuth2Instance as any)
+    expect(results[0].listUnsubscribe).toBeNull()
+  })
+
+  it("populates labelIds from response data", async () => {
+    mockMessagesList.mockResolvedValue({ data: { messages: [{ id: "msg-3" }] } })
+    mockMessagesGet.mockResolvedValue({
+      data: {
+        id: "msg-3",
+        snippet: "Promotional email",
+        labelIds: ["CATEGORY_PROMOTIONS", "INBOX"],
+        payload: {
+          headers: [
+            { name: "Subject", value: "Sale!" },
+            { name: "Date", value: "Mon, 10 Mar 2025 10:00:00 +0000" },
+            { name: "From", value: "sale@store.com" },
+          ],
+        },
+      },
+    })
+    const { fetchEmailsSince } = await import("@/server/services/gmail.service")
+    const results = await fetchEmailsSince(mockOAuth2Instance as any)
+    expect(results[0].labelIds).toContain("CATEGORY_PROMOTIONS")
+    expect(results[0].labelIds).toContain("INBOX")
+  })
+
+  it("sets labelIds to empty array when absent from response", async () => {
+    mockMessagesList.mockResolvedValue({ data: { messages: [{ id: "msg-4" }] } })
+    mockMessagesGet.mockResolvedValue({
+      data: {
+        id: "msg-4",
+        snippet: "snippet",
+        payload: {
+          headers: [
+            { name: "Subject", value: "Job offer" },
+            { name: "Date", value: "Mon, 10 Mar 2025 10:00:00 +0000" },
+            { name: "From", value: "hr@corp.com" },
+          ],
+        },
+      },
+    })
+    const { fetchEmailsSince } = await import("@/server/services/gmail.service")
+    const results = await fetchEmailsSince(mockOAuth2Instance as any)
+    expect(results[0].labelIds).toEqual([])
+  })
+})
+
+describe("ATS_DOMAINS export", () => {
+  it("exports ATS_DOMAINS as a Set containing greenhouse.io", async () => {
+    const { ATS_DOMAINS } = await import("@/server/services/gmail.service")
+    expect(ATS_DOMAINS).toBeInstanceOf(Set)
+    expect(ATS_DOMAINS.has("greenhouse.io")).toBe(true)
+    expect(ATS_DOMAINS.has("lever.co")).toBe(true)
   })
 })

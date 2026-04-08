@@ -10,11 +10,13 @@ export interface EmailRaw {
   from: string;
   companyHint: string | null;
   isATS: boolean;
+  listUnsubscribe: string | null;
+  labelIds: string[];
 }
 
 // ─── From header parsing ──────────────────────────────────────────────────────
 
-const ATS_DOMAINS = new Set([
+export const ATS_DOMAINS = new Set([
   "greenhouse.io",
   "greenhouse-mail.io",
   "lever.co",
@@ -156,7 +158,7 @@ export async function getGmailClient(userId: string): Promise<OAuth2Client> {
 // ─── Email fetch ─────────────────────────────────────────────────────────────
 
 const GMAIL_QUERY = [
-  'subject:(applied OR application OR interview OR offer OR rejection OR congratulations OR assessment OR invitation OR position OR candidate OR "next steps" OR decision OR "thank you" OR update OR role)',
+  'subject:(applied OR application OR interview OR offer OR rejection OR congratulations OR assessment OR position OR "next steps" OR decision OR role)',
   "OR from:(greenhouse.io OR lever.co OR workday.com OR ashby.com OR myworkdayjobs.com OR icims.com OR jobvite.com OR smartrecruiters.com OR taleo.net OR successfactors.com OR bamboohr.com OR brassring.com OR jazz.co OR rippling.com OR dover.com OR pinpoint.com OR recruiting.com)",
 ].join(" ");
 
@@ -203,7 +205,7 @@ export async function fetchEmailsSince(
             userId: "me",
             id: msg.id,
             format: "metadata",
-            metadataHeaders: ["Subject", "Date", "From"],
+            metadataHeaders: ["Subject", "Date", "From", "List-Unsubscribe"],
           });
           const data = getRes.data;
           const headers = data.payload?.headers ?? [];
@@ -213,6 +215,9 @@ export async function fetchEmailsSince(
           const fromHeader =
             headers.find((h) => h.name === "From")?.value ?? "";
           const { companyHint, isATS } = parseFromHeader(fromHeader);
+          const listUnsubscribe =
+            headers.find((h) => h.name === "List-Unsubscribe")?.value ?? null;
+          const labelIds: string[] = data.labelIds ?? [];
           return {
             messageId: msg.id,
             subject,
@@ -221,6 +226,8 @@ export async function fetchEmailsSince(
             from: fromHeader,
             companyHint,
             isATS,
+            listUnsubscribe,
+            labelIds,
           } satisfies EmailRaw;
         } catch {
           return null;
