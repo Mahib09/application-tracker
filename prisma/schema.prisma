@@ -58,10 +58,18 @@ model SyncState {
   lastSyncStatus lastSyncStatus?
   lastSyncError  String?
 
-  emailsFetched    Int?
-  emailsClassified Int?
-  aiCallCount      Int?
-  sonnetCallCount  Int?
+  emailsFetched        Int?
+  emailsClassified     Int?
+  aiCallCount          Int?
+  sonnetCallCount      Int?
+  filteredCount        Int?
+  haikuCallCount       Int?
+  triageYesCount       Int?
+  triageNoCount        Int?
+  triageUncertainCount Int?
+  autoCommitCount      Int?
+  reviewFlagCount      Int?
+  manualQueueCount     Int?
 
   updatedAt DateTime @updatedAt
 }

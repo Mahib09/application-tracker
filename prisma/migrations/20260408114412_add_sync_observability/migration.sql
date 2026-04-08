@@ -1,0 +1,9 @@
+-- AlterTable SyncState: add sync observability fields
+ALTER TABLE "SyncState" ADD COLUMN "filteredCount" INTEGER;
+ALTER TABLE "SyncState" ADD COLUMN "haikuCallCount" INTEGER;
+ALTER TABLE "SyncState" ADD COLUMN "triageYesCount" INTEGER;
+ALTER TABLE "SyncState" ADD COLUMN "triageNoCount" INTEGER;
+ALTER TABLE "SyncState" ADD COLUMN "triageUncertainCount" INTEGER;
+ALTER TABLE "SyncState" ADD COLUMN "autoCommitCount" INTEGER;
+ALTER TABLE "SyncState" ADD COLUMN "reviewFlagCount" INTEGER;
+ALTER TABLE "SyncState" ADD COLUMN "manualQueueCount" INTEGER;
