@@ -1,4 +1,4 @@
-import type { ClassificationResult, EmailInput } from "@/server/services/classification.service"
+import type { ClassificationResult } from "@/server/services/classification.service"
 
 // ─── Artifact role title detection ───────────────────────────────────────────
 
@@ -89,6 +89,9 @@ export function sanitizeResult(result: ClassificationResult): ClassificationResu
   // Clear noreply/donotreply prefixed names ("noreply WorkdayMyview")
   if (/^(noreply|no-reply|donotreply)\b/i.test(company)) company = ""
 
+  // Clear "our/we" prefix — AI sometimes returns "Our recruiting team" verbatim
+  if (/^(our|we)\b/i.test(company)) company = ""
+
   // Strip "role of" / "position of" prefix
   roleTitle = roleTitle.replace(/^(?:the\s+)?(?:role|position)\s+of\s+/i, "")
 
@@ -127,7 +130,7 @@ export function sanitizeResult(result: ClassificationResult): ClassificationResu
  */
 export function postProcess(
   result: ClassificationResult,
-  email: EmailInput
+  email: { companyHint: string | null }
 ): ClassificationResult {
   let processed = sanitizeResult(result)
 
