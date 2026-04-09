@@ -1,6 +1,7 @@
 import { google } from "googleapis";
 import type { OAuth2Client } from "google-auth-library";
 import { prisma } from "@/server/lib/prisma";
+import { ATS_BRAND_NAMES } from "@/server/services/classification/sanitize";
 
 export interface EmailRaw {
   messageId: string;
@@ -63,12 +64,7 @@ export function parseFromHeader(from: string): {
       .replace(/\s+/g, " ")
       .trim();
     // If the remaining hint contains an ATS product name it's branding, not a company
-    const atsBrands = [
-      "workday", "myworkday", "greenhouse", "lever", "ashby",
-      "taleo", "icims", "jobvite", "smartrecruiters", "bamboohr",
-      "successfactors", "breezy",
-    ];
-    if (!hint || atsBrands.some((b) => hint.toLowerCase().includes(b))) {
+    if (!hint || [...ATS_BRAND_NAMES].some((b) => hint.toLowerCase().includes(b))) {
       return { companyHint: null, isATS: true };
     }
     return { companyHint: hint, isATS: true };

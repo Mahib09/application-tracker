@@ -1,5 +1,13 @@
 import type { ClassificationResult } from "@/server/services/classification.service"
 
+// ─── ATS brand names ──────────────────────────────────────────────────────────
+// Used to reject ATS platform names extracted as company values.
+export const ATS_BRAND_NAMES: ReadonlySet<string> = new Set([
+  "greenhouse", "lever", "workday", "ashby", "icims", "jobvite",
+  "smartrecruiters", "taleo", "bamboohr", "successfactors", "breezy",
+  "njoyn", "jazz", "recruitee", "pinpoint",
+])
+
 // ─── Artifact role title detection ───────────────────────────────────────────
 
 const ARTIFACT_ROLE_PATTERNS: RegExp[] = [

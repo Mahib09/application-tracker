@@ -10,6 +10,7 @@ export async function POST() {
     const result = await syncApplications(session.user.id)
     return NextResponse.json(result, { status: 200 })
   } catch (error) {
+    console.error("[sync route] 500 error:", error)
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Unknown error" },
       { status: 500 }
