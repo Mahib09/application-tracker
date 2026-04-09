@@ -4,8 +4,7 @@ import {
   fetchEmailsSince,
 } from "@/server/services/gmail.service";
 import {
-  classifyStage1,
-  classifyStage2Plus,
+  classifyPipeline,
   roleTitlesSimilar,
   type ClassificationResult,
 } from "@/server/services/classification.service";
@@ -248,23 +247,15 @@ export async function syncApplications(userId: string): Promise<SyncResult> {
     let synced = 0;
     let updated = 0;
 
-    // 5. Stage 1: regex classify — persist immediately, no AI dependency
-    const { classified: stage1Results, unclassified } = classifyStage1(emails);
-    for (const result of stage1Results) {
+    // 5. Classify — deterministic filter → Haiku triage → Sonnet extraction
+    const { results, stats } = await classifyPipeline(emails, gmailClient);
+    for (const result of results) {
       const r = await upsertResult(userId, result);
       if (r === "created") synced++;
       else if (r === "updated") updated++;
     }
 
-    // 6. Stage 2+: AI classify remaining — persist as results arrive
-    const stage2Results = await classifyStage2Plus(unclassified, gmailClient);
-    for (const result of stage2Results) {
-      const r = await upsertResult(userId, result);
-      if (r === "created") synced++;
-      else if (r === "updated") updated++;
-    }
-
-    // 7. GHOSTED sweep — runs after new emails processed
+    // 6. GHOSTED sweep — runs after new emails processed
     const ghostedResult = await prisma.application.updateMany({
       where: {
         userId,
@@ -276,13 +267,22 @@ export async function syncApplications(userId: string): Promise<SyncResult> {
     });
     const ghosted = ghostedResult.count;
 
-    // 8. Update SyncState to SUCCESS
+    // 7. Update SyncState to SUCCESS
     await prisma.syncState.upsert({
       where: { userId },
       update: {
         lastSyncedAt: now,
         lastSyncStatus: "SUCCESS" as any,
         lastSyncError: null,
+        filteredCount: stats.filteredCount,
+        haikuCallCount: stats.haikuCallCount,
+        triageYesCount: stats.triageYesCount,
+        triageNoCount: stats.triageNoCount,
+        triageUncertainCount: stats.triageUncertainCount,
+        sonnetCallCount: stats.sonnetCallCount,
+        autoCommitCount: stats.autoCommitCount,
+        reviewFlagCount: stats.reviewFlagCount,
+        manualQueueCount: stats.manualQueueCount,
       },
       create: { userId, lastSyncedAt: now, lastSyncStatus: "SUCCESS" as any },
     });
