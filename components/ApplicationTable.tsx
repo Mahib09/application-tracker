@@ -6,7 +6,10 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table"
 import { Card, CardContent } from "@/components/ui/card"
-import { Textarea } from "@/components/ui/textarea"
+import { STATUS_CONFIG, STATUS_DISPLAY_ORDER } from "@/lib/constants"
+import { EmptyState } from "@/components/ui/empty-state"
+import ApplicationDetail from "@/components/ApplicationDetail"
+import { Inbox, ChevronDown, ChevronRight } from "lucide-react"
 
 export interface Application {
   id: string
@@ -17,7 +20,10 @@ export interface Application {
   appliedAt: Date | null
   location: string | null
   notes: string | null
-  gmailMessageId: string | null
+  confidence: number | null
+  jobUrl: string | null
+  manuallyEdited: boolean
+  sourceEmailId: string | null
 }
 
 interface Props {
@@ -26,29 +32,12 @@ interface Props {
   onNotesSave: (id: string, notes: string) => Promise<void>
 }
 
-const STATUS_CONFIG: Record<applicationStatus, { label: string; className: string }> = {
-  [applicationStatus.APPLIED]:      { label: "Applied",      className: "bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-50" },
-  [applicationStatus.INTERVIEW]:    { label: "Interview",    className: "bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-50" },
-  [applicationStatus.OFFER]:        { label: "Offer",        className: "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-50" },
-  [applicationStatus.REJECTED]:     { label: "Rejected",     className: "bg-red-50 text-red-700 border-red-200 hover:bg-red-50" },
-  [applicationStatus.GHOSTED]:      { label: "Ghosted",      className: "bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-50" },
-  [applicationStatus.NEEDS_REVIEW]: { label: "Needs Review", className: "bg-violet-50 text-violet-700 border-violet-200 hover:bg-violet-50" },
-}
-
-type SortKey = "company" | "roleTitle" | "status" | "appliedAt"
-
 export default function ApplicationTable({ applications, onStatusChange, onNotesSave }: Props) {
   const [filterStatus, setFilterStatus] = useState<applicationStatus | "ALL">("ALL")
-  const [sortKey, setSortKey] = useState<SortKey>("appliedAt")
-  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc")
   const [statusOverrides, setStatusOverrides] = useState<Record<string, applicationStatus>>({})
   const [notesOverrides, setNotesOverrides] = useState<Record<string, string>>({})
-  const [expandedNotes, setExpandedNotes] = useState<string | null>(null)
-
-  const handleSort = (key: SortKey) => {
-    if (sortKey === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"))
-    else { setSortKey(key); setSortDir("asc") }
-  }
+  const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<applicationStatus>>(new Set())
 
   const handleStatusChange = useCallback(
     async (id: string, prev: applicationStatus, next: applicationStatus) => {
@@ -75,143 +64,169 @@ export default function ApplicationTable({ applications, onStatusChange, onNotes
     [onNotesSave, notesOverrides],
   )
 
-  const filtered = applications.filter(
+  const toggleGroup = (status: applicationStatus) => {
+    setCollapsedGroups((prev) => {
+      const next = new Set(prev)
+      if (next.has(status)) next.delete(status)
+      else next.add(status)
+      return next
+    })
+  }
+
+  // NEEDS_REVIEW items live in ReviewQueue, not here
+  const nonReview = applications.filter(
+    (a) => (statusOverrides[a.id] ?? a.status) !== applicationStatus.NEEDS_REVIEW,
+  )
+  const filtered = nonReview.filter(
     (a) => filterStatus === "ALL" || (statusOverrides[a.id] ?? a.status) === filterStatus,
   )
-  const sorted = [...filtered].sort((a, b) => {
-    const va = sortKey === "appliedAt"
-      ? (a.appliedAt?.getTime() ?? 0)
-      : ((statusOverrides[a.id] ?? a[sortKey] ?? "") as string | number)
-    const vb = sortKey === "appliedAt"
-      ? (b.appliedAt?.getTime() ?? 0)
-      : ((statusOverrides[b.id] ?? b[sortKey] ?? "") as string | number)
-    if (va < vb) return sortDir === "asc" ? -1 : 1
-    if (va > vb) return sortDir === "asc" ? 1 : -1
-    return 0
-  })
 
-  const SortIndicator = ({ k }: { k: SortKey }) => (
-    <span className="ml-1 text-slate-400">{sortKey === k ? (sortDir === "asc" ? "↑" : "↓") : "↕"}</span>
-  )
+  // Group by status in pipeline order
+  const grouped = STATUS_DISPLAY_ORDER.map((status) => ({
+    status,
+    items: filtered
+      .filter((a) => (statusOverrides[a.id] ?? a.status) === status)
+      .sort((a, b) => (b.appliedAt?.getTime() ?? 0) - (a.appliedAt?.getTime() ?? 0)),
+  })).filter(({ items }) => items.length > 0)
+
+  if (filtered.length === 0) {
+    return (
+      <div>
+        <FilterBar filterStatus={filterStatus} onChange={setFilterStatus} />
+        <EmptyState
+          icon={<Inbox className="size-8" />}
+          title="No applications yet"
+          description="Click Sync Now to import from Gmail, or wait for the next automatic sync."
+        />
+      </div>
+    )
+  }
 
   return (
     <div>
-      <div className="mb-4">
-        <select
-          aria-label="Filter by status"
-          className="rounded-md border border-slate-200 px-3 py-2 text-sm bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          value={filterStatus}
-          onChange={(e) => setFilterStatus(e.target.value as applicationStatus | "ALL")}
-        >
-          <option value="ALL">All statuses</option>
-          {Object.values(applicationStatus).map((s) => (
-            <option key={s} value={s}>{STATUS_CONFIG[s].label}</option>
-          ))}
-        </select>
-      </div>
+      <FilterBar filterStatus={filterStatus} onChange={setFilterStatus} />
+      <div className="space-y-4">
+        {grouped.map(({ status, items }) => {
+          const isCollapsed = collapsedGroups.has(status)
+          const cfg = STATUS_CONFIG[status]
+          return (
+            <Card key={status}>
+              {/* Group header */}
+              <button
+                className="flex w-full items-center justify-between px-4 py-3 hover:bg-slate-50 transition-colors rounded-t-[inherit]"
+                onClick={() => toggleGroup(status)}
+              >
+                <div className="flex items-center gap-2">
+                  {isCollapsed
+                    ? <ChevronRight className="size-4 text-slate-400" />
+                    : <ChevronDown className="size-4 text-slate-400" />
+                  }
+                  <Badge variant="outline" className={`${cfg.className} text-xs`}>
+                    {cfg.label}
+                  </Badge>
+                  <span className="text-xs text-slate-400">{items.length}</span>
+                </div>
+              </button>
 
-      {sorted.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-20 text-center">
-          <p className="text-slate-400 text-sm">No applications yet. Click Sync Now to import from Gmail.</p>
-        </div>
-      ) : (
-        <Card>
-          <CardContent className="p-0">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  {(["company", "roleTitle", "status", "appliedAt"] as SortKey[]).map((k) => (
-                    <TableHead
-                      key={k}
-                      className="cursor-pointer select-none hover:text-slate-900"
-                      onClick={() => handleSort(k)}
-                    >
-                      {k === "roleTitle" ? "Role" : k === "appliedAt" ? "Date" : k.charAt(0).toUpperCase() + k.slice(1)}
-                      <SortIndicator k={k} />
-                    </TableHead>
-                  ))}
-                  <TableHead>Notes</TableHead>
-                  <TableHead>Location</TableHead>
-                  <TableHead>Source</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {sorted.flatMap((app) => {
-                  const currentStatus = statusOverrides[app.id] ?? app.status
-                  const currentNotes = notesOverrides[app.id] !== undefined
-                    ? notesOverrides[app.id]
-                    : (app.notes ?? "")
-                  const isExpanded = expandedNotes === app.id
-
-                  return [
-                    <TableRow key={app.id}>
-                      <TableCell className="font-medium text-slate-900">{app.company}</TableCell>
-                      <TableCell className="text-slate-700">{app.roleTitle}</TableCell>
-                      <TableCell>
-                        <select
-                          aria-label="status"
-                          value={currentStatus}
-                          onChange={(e) =>
-                            handleStatusChange(app.id, currentStatus, e.target.value as applicationStatus)
-                          }
-                          className={`rounded-full px-2 py-0.5 text-xs font-medium border cursor-pointer focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-blue-500 ${STATUS_CONFIG[currentStatus].className}`}
-                        >
-                          {Object.values(applicationStatus).map((s) => (
-                            <option key={s} value={s}>{STATUS_CONFIG[s].label}</option>
-                          ))}
-                        </select>
-                      </TableCell>
-                      <TableCell className="text-slate-500">
-                        {app.appliedAt ? new Date(app.appliedAt).toLocaleDateString() : "—"}
-                      </TableCell>
-                      <TableCell>
-                        <button
-                          className="text-slate-400 hover:text-slate-600 text-xs text-left focus:outline-none focus:underline"
-                          onClick={() => setExpandedNotes(isExpanded ? null : app.id)}
-                        >
-                          {currentNotes
-                            ? currentNotes.slice(0, 30) + (currentNotes.length > 30 ? "…" : "")
-                            : <span className="text-slate-300">Add note</span>}
-                        </button>
-                      </TableCell>
-                      <TableCell className="text-slate-500">{app.location ?? "—"}</TableCell>
-                      <TableCell>
-                        <Badge
-                          variant="outline"
-                          className={
-                            app.source === applicationSource.GMAIL
-                              ? "bg-purple-50 text-purple-700 border-purple-200"
-                              : "bg-slate-50 text-slate-500 border-slate-200"
-                          }
-                        >
-                          {app.source}
-                        </Badge>
-                      </TableCell>
-                    </TableRow>,
-                    isExpanded && (
-                      <TableRow key={`${app.id}-notes`} className="bg-slate-50">
-                        <TableCell colSpan={7} className="pb-3">
-                          <Textarea
-                            autoFocus
-                            defaultValue={currentNotes}
-                            rows={3}
-                            placeholder="Add notes…"
-                            className="resize-none text-sm"
-                            onBlur={(e) => {
-                              if (e.target.value !== currentNotes) handleNotesSave(app.id, e.target.value)
-                              setExpandedNotes(null)
-                            }}
-                          />
-                        </TableCell>
+              {!isCollapsed && (
+                <CardContent className="p-0">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Company</TableHead>
+                        <TableHead>Role</TableHead>
+                        <TableHead>Date</TableHead>
+                        <TableHead>Location</TableHead>
+                        <TableHead>Source</TableHead>
+                        <TableHead>Notes</TableHead>
                       </TableRow>
-                    ),
-                  ].filter(Boolean)
-                })}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-      )}
+                    </TableHeader>
+                    <TableBody>
+                      {items.flatMap((app) => {
+                        const currentStatus = statusOverrides[app.id] ?? app.status
+                        const currentNotes = notesOverrides[app.id] !== undefined
+                          ? notesOverrides[app.id]
+                          : (app.notes ?? "")
+                        const isExpanded = expandedId === app.id
+
+                        return [
+                          <TableRow
+                            key={app.id}
+                            className={isExpanded ? "bg-slate-50 border-b-0" : "cursor-pointer"}
+                            onClick={() => setExpandedId(isExpanded ? null : app.id)}
+                          >
+                            <TableCell className="font-medium text-slate-900">{app.company}</TableCell>
+                            <TableCell className="text-slate-700">{app.roleTitle}</TableCell>
+                            <TableCell className="text-slate-500">
+                              {app.appliedAt ? new Date(app.appliedAt).toLocaleDateString() : "—"}
+                            </TableCell>
+                            <TableCell className="text-slate-500">{app.location ?? "—"}</TableCell>
+                            <TableCell>
+                              <Badge
+                                variant="outline"
+                                className={
+                                  app.source === applicationSource.GMAIL
+                                    ? "bg-purple-50 text-purple-700 border-purple-200"
+                                    : "bg-slate-50 text-slate-500 border-slate-200"
+                                }
+                              >
+                                {app.source === applicationSource.GMAIL ? "Gmail" : "Manual"}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-xs text-slate-400 max-w-35 truncate">
+                              {currentNotes
+                                ? currentNotes.slice(0, 40) + (currentNotes.length > 40 ? "…" : "")
+                                : <span className="text-slate-300">—</span>}
+                            </TableCell>
+                          </TableRow>,
+                          isExpanded && (
+                            <TableRow key={`${app.id}-detail`} className="bg-slate-50 hover:bg-slate-50">
+                              <TableCell colSpan={6} className="p-0 border-t border-slate-100">
+                                <ApplicationDetail
+                                  app={app}
+                                  currentStatus={currentStatus}
+                                  currentNotes={currentNotes}
+                                  onStatusChange={(next) => handleStatusChange(app.id, currentStatus, next)}
+                                  onNotesSave={(notes) => handleNotesSave(app.id, notes)}
+                                  onClose={() => setExpandedId(null)}
+                                />
+                              </TableCell>
+                            </TableRow>
+                          ),
+                        ].filter(Boolean)
+                      })}
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              )}
+            </Card>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+function FilterBar({
+  filterStatus,
+  onChange,
+}: {
+  filterStatus: applicationStatus | "ALL"
+  onChange: (v: applicationStatus | "ALL") => void
+}) {
+  return (
+    <div className="mb-4">
+      <select
+        aria-label="Filter by status"
+        className="rounded-md border border-slate-200 px-3 py-2 text-sm bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+        value={filterStatus}
+        onChange={(e) => onChange(e.target.value as applicationStatus | "ALL")}
+      >
+        <option value="ALL">All statuses</option>
+        {STATUS_DISPLAY_ORDER.map((s) => (
+          <option key={s} value={s}>{STATUS_CONFIG[s].label}</option>
+        ))}
+      </select>
     </div>
   )
 }

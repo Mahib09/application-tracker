@@ -105,3 +105,33 @@ export async function updateApplication(
     throw new Error("application not found");
   }
 }
+
+export async function deleteApplication(
+  userId: string,
+  applicationId: string,
+) {
+  if (!userId) {
+    throw new Error("userId is required");
+  }
+  if (!applicationId) {
+    throw new Error("applicationId is required");
+  }
+
+  const application = await prisma.application.findFirst({
+    where: {
+      id: applicationId,
+      userId: userId,
+    },
+    select: { id: true },
+  });
+
+  if (!application) {
+    throw new Error("application not found");
+  }
+
+  await prisma.application.delete({
+    where: { id: application.id },
+  });
+
+  return { deleted: true };
+}

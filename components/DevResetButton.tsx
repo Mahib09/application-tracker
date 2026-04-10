@@ -41,15 +41,12 @@ export default function DevResetButton() {
     <div className="flex items-center gap-4 pt-4 mt-2 border-t border-dashed border-slate-200">
       <span className="text-xs font-medium text-slate-400 uppercase tracking-wide">Dev Only</span>
       <AlertDialog>
-        <AlertDialogTrigger asChild>
-          <Button
-            variant="destructive"
-            size="sm"
-            disabled={resetting}
-            aria-label="Reset all Gmail application data and re-sync"
-          >
-            {resetting ? "Resetting…" : "Reset & Full Re-sync"}
-          </Button>
+        <AlertDialogTrigger
+          disabled={resetting}
+          aria-label="Reset all Gmail application data and re-sync"
+          className="inline-flex h-7 items-center rounded-[min(var(--radius-md),12px)] border border-transparent bg-destructive/10 px-2.5 text-[0.8rem] font-medium text-destructive hover:bg-destructive/20 disabled:pointer-events-none disabled:opacity-50"
+        >
+          {resetting ? "Resetting…" : "Reset & Full Re-sync"}
         </AlertDialogTrigger>
         <AlertDialogContent>
           <AlertDialogHeader>

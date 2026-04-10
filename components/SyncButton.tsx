@@ -2,10 +2,13 @@
 import { useEffect, useState, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
+import { useToast } from "@/components/ui/toast"
+import { RefreshCw } from "lucide-react"
 
 interface Props {
   lastSyncedAt: Date | null
   cooldownMs: number
+  compact?: boolean
 }
 
 function relativeTime(date: Date): string {
@@ -18,12 +21,12 @@ function countdown(ms: number): string {
   return `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, "0")}`
 }
 
-export default function SyncButton({ lastSyncedAt, cooldownMs: initialCooldown }: Props) {
+export default function SyncButton({ lastSyncedAt, cooldownMs: initialCooldown, compact }: Props) {
   const router = useRouter()
+  const { toast } = useToast()
   const [syncing, setSyncing] = useState(false)
   const [cooldownMs, setCooldownMs] = useState(initialCooldown)
   const [lastSynced, setLastSynced] = useState<Date | null>(lastSyncedAt)
-  const [message, setMessage] = useState<string | null>(null)
   const mounted = useRef(false)
 
   useEffect(() => {
@@ -37,7 +40,6 @@ export default function SyncButton({ lastSyncedAt, cooldownMs: initialCooldown }
 
   const doSync = async () => {
     setSyncing(true)
-    setMessage(null)
     try {
       const res = await fetch("/api/sync", { method: "POST" })
       const data = await res.json()
@@ -46,11 +48,14 @@ export default function SyncButton({ lastSyncedAt, cooldownMs: initialCooldown }
       } else {
         setLastSynced(new Date())
         setCooldownMs(15 * 60 * 1000)
-        setMessage(`Synced ${data.synced} new application${data.synced !== 1 ? "s" : ""}`)
+        toast({
+          message: `Synced ${data.synced} new application${data.synced !== 1 ? "s" : ""}`,
+          variant: "success",
+        })
         router.refresh()
       }
     } catch {
-      setMessage("Sync failed — check connection")
+      toast({ message: "Sync failed — check connection", variant: "error" })
     } finally {
       setSyncing(false)
     }
@@ -64,6 +69,25 @@ export default function SyncButton({ lastSyncedAt, cooldownMs: initialCooldown }
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
+  if (compact) {
+    return (
+      <div className="flex items-center gap-2">
+        <span className="text-xs text-slate-400">
+          {lastSynced ? relativeTime(lastSynced) : "Never synced"}
+        </span>
+        <Button
+          onClick={doSync}
+          disabled={syncing || cooldownMs > 0}
+          variant="outline"
+          size="icon-xs"
+          title={cooldownMs > 0 ? `Available in ${countdown(cooldownMs)}` : "Sync now"}
+        >
+          <RefreshCw className={`size-3 ${syncing ? "animate-spin" : ""}`} />
+        </Button>
+      </div>
+    )
+  }
+
   return (
     <div className="flex items-center gap-4 mb-6">
       <Button
@@ -72,11 +96,11 @@ export default function SyncButton({ lastSyncedAt, cooldownMs: initialCooldown }
         variant="default"
         size="sm"
       >
+        <RefreshCw className={`size-3.5 ${syncing ? "animate-spin" : ""}`} data-icon="inline-start" />
         {syncing ? "Syncing…" : cooldownMs > 0 ? `Available in ${countdown(cooldownMs)}` : "Sync Now"}
       </Button>
       <span className="text-sm text-slate-500">
         {lastSynced ? `Last synced ${relativeTime(lastSynced)}` : "Never synced"}
-        {message && <span className="ml-2 text-emerald-600">{message}</span>}
       </span>
     </div>
   )

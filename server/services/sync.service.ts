@@ -6,6 +6,7 @@ import {
 import {
   classifyPipeline,
   roleTitlesSimilar,
+  companySimilar,
   type ClassificationResult,
 } from "@/server/services/classification.service";
 
@@ -91,6 +92,27 @@ async function upsertResult(
     });
   }
 
+  // ── Tier 2.75: company name variant — "Autism Today" ↔ "Autism Today Foundation" ─
+  // Scans all user applications for a similar company (word-subset match), then
+  // applies the same role-title matching as Tier 2.5 / Tier 3.
+  if (!existing) {
+    const allForUser = await prisma.application.findMany({
+      where: { userId },
+      orderBy: { appliedAt: "desc" },
+    });
+    const companyCandidates = allForUser.filter((c) =>
+      companySimilar(c.company, result.company)
+    );
+    if (result.roleTitle !== "") {
+      existing =
+        companyCandidates.find((c) =>
+          c.roleTitle === "" || roleTitlesSimilar(c.roleTitle, result.roleTitle)
+        ) ?? null;
+    } else {
+      existing = companyCandidates[0] ?? null;
+    }
+  }
+
   if (existing) {
     const existingPriority = STATUS_PRIORITY[existing.status] ?? 0;
     const newPriority = STATUS_PRIORITY[result.status] ?? 0;
@@ -130,12 +152,12 @@ async function upsertResult(
     // ── Status update condition ───────────────────────────────────────────────
     const shouldUpdateStatus =
       newPriority > existingPriority ||
-      (newPriority === existingPriority && result.date > existing.appliedAt);
+      (newPriority === existingPriority && result.date > (existing.appliedAt ?? new Date(0)));
 
     // Only advance appliedAt when the status is also advancing — prevents a late
     // APPLIED auto-reply from updating the date on an INTERVIEW/REJECTED record
     const shouldUpdateDate =
-      shouldUpdateStatus && result.date > existing.appliedAt;
+      shouldUpdateStatus && result.date > (existing.appliedAt ?? new Date(0));
 
     const hasChanges =
       shouldUpdateStatus ||
