@@ -47,8 +47,22 @@ model Application {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  statusChanges StatusChange[]
+
   @@index([userId, status])
   @@index([userId, appliedAt])
+}
+
+model StatusChange {
+  id            String            @id @default(uuid()) @db.Uuid
+  applicationId String            @db.Uuid
+  application   Application       @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  fromStatus    applicationStatus
+  toStatus      applicationStatus
+  trigger       changeTrigger     @default(MANUAL)
+  createdAt     DateTime          @default(now())
+
+  @@index([applicationId, createdAt])
 }
 
 model SyncState {
@@ -102,4 +116,12 @@ enum applicationSource {
 enum lastSyncStatus {
   SUCCESS
   FAIL
+}
+
+enum changeTrigger {
+  MANUAL
+  SYNC
+  AUTO_GHOST
+  DRAG_DROP
+  COMMAND_PALETTE
 }

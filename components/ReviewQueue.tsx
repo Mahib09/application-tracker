@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { applicationStatus } from "@/app/generated/prisma/enums"
 import { Button } from "@/components/ui/button"
-import { useToast } from "@/components/ui/toast"
+import { toast } from "@/lib/toast"
 import ReviewCard, { type ReviewApplication } from "@/components/ReviewCard"
 import { Kbd } from "@/components/ui/kbd"
 import { CheckCheck, Sparkles } from "lucide-react"
@@ -18,7 +18,6 @@ interface Props {
 
 export default function ReviewQueue({ applications, onApprove, onDismiss, onBulkApprove }: Props) {
   const router = useRouter()
-  const { toast } = useToast()
   const [processedIds, setProcessedIds] = useState<Set<string>>(new Set())
   const [bulkLoading, setBulkLoading] = useState(false)
   const remaining = applications.filter((a) => !processedIds.has(a.id))
@@ -56,7 +55,7 @@ export default function ReviewQueue({ applications, onApprove, onDismiss, onBulk
   const handleDismiss = async (id: string) => {
     await onDismiss(id)
     setProcessedIds((prev) => new Set(prev).add(id))
-    toast({ message: "Application dismissed", variant: "default" })
+    toast("Application dismissed")
     router.refresh()
   }
 
@@ -70,7 +69,7 @@ export default function ReviewQueue({ applications, onApprove, onDismiss, onBulk
         ids.forEach((id) => next.add(id))
         return next
       })
-      toast({ message: `Approved ${ids.length} application${ids.length !== 1 ? "s" : ""}`, variant: "success" })
+      toast.success(`Approved ${ids.length} application${ids.length !== 1 ? "s" : ""}`)
       router.refresh()
     } finally {
       setBulkLoading(false)

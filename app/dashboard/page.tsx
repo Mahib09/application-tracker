@@ -1,14 +1,13 @@
-import { auth, signOut } from "@/server/auth"
+import { auth } from "@/server/auth"
 import { redirect } from "next/navigation"
 import { listApplications, updateApplication, deleteApplication } from "@/server/services/application.service"
 import { prisma } from "@/server/lib/prisma"
 import { applicationStatus } from "@/app/generated/prisma/enums"
+import DashboardShell from "@/components/layout/DashboardShell"
 import StatsBar from "@/components/StatsBar"
 import ApplicationTable from "@/components/ApplicationTable"
-import SyncButton from "@/components/SyncButton"
 import ReviewQueue from "@/components/ReviewQueue"
 import OnboardingEmptyState from "@/components/OnboardingEmptyState"
-import AddApplicationDialog from "@/components/AddApplicationDialog"
 
 const COOLDOWN_MS = 15 * 60 * 1000
 
@@ -60,72 +59,46 @@ export default async function DashboardPage() {
 
   if (isFirstTimeUser) {
     return (
-      <main className="min-h-screen bg-slate-50">
-        <header className="border-b bg-white px-6 py-3 flex items-center justify-between">
-          <h1 className="text-lg font-semibold text-slate-900">Application Tracker</h1>
-          <div className="flex items-center gap-3">
-            <span className="text-sm text-slate-500">{session.user.name}</span>
-            <form action={async () => { "use server"; await signOut({ redirectTo: "/login" }) }}>
-              <button type="submit" className="text-sm text-slate-500 hover:text-slate-700 transition-colors">
-                Sign out
-              </button>
-            </form>
-          </div>
-        </header>
-        <div className="max-w-7xl mx-auto px-6 py-8">
+      <DashboardShell lastSyncedAt={null} cooldownMs={0}>
+        <div className="py-8">
           <OnboardingEmptyState />
         </div>
-      </main>
+      </DashboardShell>
     )
   }
 
   return (
-    <main className="min-h-screen bg-slate-50">
-      {/* Zone A: Header */}
-      <header className="border-b bg-white px-6 py-3 flex items-center justify-between">
-        <h1 className="text-lg font-semibold text-slate-900">Application Tracker</h1>
-        <div className="flex items-center gap-4">
-          <AddApplicationDialog />
-          <SyncButton lastSyncedAt={syncState?.lastSyncedAt ?? null} cooldownMs={cooldownMs} compact />
-          <div className="w-px h-5 bg-slate-200" />
-          <span className="text-sm text-slate-500">{session.user.name}</span>
-          <form action={async () => { "use server"; await signOut({ redirectTo: "/login" }) }}>
-            <button type="submit" className="text-sm text-slate-500 hover:text-slate-700 transition-colors">
-              Sign out
-            </button>
-          </form>
-        </div>
-      </header>
+    <DashboardShell
+      lastSyncedAt={syncState?.lastSyncedAt ?? null}
+      cooldownMs={cooldownMs}
+    >
+      {/* Stats */}
+      <StatsBar applications={applications} />
 
-      <div className="max-w-7xl mx-auto px-6 py-8">
-        {/* Stats */}
-        <StatsBar applications={applications} />
-
-        {/* Zone B: Review Queue — only when items exist */}
-        {needsReview.length > 0 && (
-          <ReviewQueue
-            applications={needsReview.map((a) => ({
-              id: a.id,
-              company: a.company,
-              roleTitle: a.roleTitle,
-              status: a.status,
-              appliedAt: a.appliedAt,
-              location: a.location,
-              confidence: a.confidence,
-            }))}
-            onApprove={handleApproveReview}
-            onDismiss={handleDismissApplication}
-            onBulkApprove={handleBulkApprove}
-          />
-        )}
-
-        {/* Zone C: Application Table */}
-        <ApplicationTable
-          applications={applications}
-          onStatusChange={handleStatusChange}
-          onNotesSave={handleNotesSave}
+      {/* Review Queue — only when items exist */}
+      {needsReview.length > 0 && (
+        <ReviewQueue
+          applications={needsReview.map((a) => ({
+            id: a.id,
+            company: a.company,
+            roleTitle: a.roleTitle,
+            status: a.status,
+            appliedAt: a.appliedAt,
+            location: a.location,
+            confidence: a.confidence,
+          }))}
+          onApprove={handleApproveReview}
+          onDismiss={handleDismissApplication}
+          onBulkApprove={handleBulkApprove}
         />
-      </div>
-    </main>
+      )}
+
+      {/* Application Table */}
+      <ApplicationTable
+        applications={applications}
+        onStatusChange={handleStatusChange}
+        onNotesSave={handleNotesSave}
+      />
+    </DashboardShell>
   )
 }

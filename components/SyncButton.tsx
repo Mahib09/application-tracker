@@ -2,7 +2,7 @@
 import { useEffect, useState, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
-import { useToast } from "@/components/ui/toast"
+import { toast } from "@/lib/toast"
 import { RefreshCw } from "lucide-react"
 
 interface Props {
@@ -23,7 +23,6 @@ function countdown(ms: number): string {
 
 export default function SyncButton({ lastSyncedAt, cooldownMs: initialCooldown, compact }: Props) {
   const router = useRouter()
-  const { toast } = useToast()
   const [syncing, setSyncing] = useState(false)
   const [cooldownMs, setCooldownMs] = useState(initialCooldown)
   const [lastSynced, setLastSynced] = useState<Date | null>(lastSyncedAt)
@@ -48,14 +47,11 @@ export default function SyncButton({ lastSyncedAt, cooldownMs: initialCooldown, 
       } else {
         setLastSynced(new Date())
         setCooldownMs(15 * 60 * 1000)
-        toast({
-          message: `Synced ${data.synced} new application${data.synced !== 1 ? "s" : ""}`,
-          variant: "success",
-        })
+        toast.success(`Synced ${data.synced} new application${data.synced !== 1 ? "s" : ""}`)
         router.refresh()
       }
     } catch {
-      toast({ message: "Sync failed — check connection", variant: "error" })
+      toast.error("Sync failed — check connection")
     } finally {
       setSyncing(false)
     }

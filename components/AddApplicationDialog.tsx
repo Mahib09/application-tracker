@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
-import { useToast } from "@/components/ui/toast"
+import { toast } from "@/lib/toast"
 import { STATUS_CONFIG } from "@/lib/constants"
 import { Plus } from "lucide-react"
 
@@ -26,7 +26,6 @@ const STATUSES = [
 
 export default function AddApplicationDialog() {
   const router = useRouter()
-  const { toast } = useToast()
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   const [form, setForm] = useState({
@@ -65,16 +64,16 @@ export default function AddApplicationDialog() {
 
       if (!res.ok) {
         const data = await res.json()
-        toast({ message: data.error ?? "Failed to add application", variant: "error" })
+        toast.error(data.error ?? "Failed to add application")
         return
       }
 
-      toast({ message: "Application added", variant: "success" })
+      toast.success("Application added")
       setOpen(false)
       setForm({ company: "", roleTitle: "", status: applicationStatus.APPLIED, location: "", jobUrl: "", notes: "" })
       router.refresh()
     } catch {
-      toast({ message: "Failed to add application", variant: "error" })
+      toast.error("Failed to add application")
     } finally {
       setLoading(false)
     }
