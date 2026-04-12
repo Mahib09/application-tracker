@@ -172,4 +172,5 @@ export async function classifyPipeline(
 export {
   normalizeRoleTitle,
   roleTitlesSimilar,
+  companySimilar,
 } from "@/server/services/classification/sanitize"

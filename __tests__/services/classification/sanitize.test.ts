@@ -176,3 +176,87 @@ describe("postProcess", () => {
     expect(result.company).toBe("Stripe")
   })
 })
+
+describe("companySimilar", () => {
+  it("matches when shorter name is a word-subset of longer name", async () => {
+    const { companySimilar } = await import("@/server/services/classification/sanitize")
+    expect(companySimilar("Autism Today", "Autism Today Foundation")).toBe(true)
+  })
+
+  it("is symmetric — longer vs shorter also matches", async () => {
+    const { companySimilar } = await import("@/server/services/classification/sanitize")
+    expect(companySimilar("Autism Today Foundation", "Autism Today")).toBe(true)
+  })
+
+  it("returns false for clearly different companies", async () => {
+    const { companySimilar } = await import("@/server/services/classification/sanitize")
+    expect(companySimilar("Google", "Microsoft")).toBe(false)
+  })
+
+  it("returns false for single-word shorter name (avoids false matches like Apple vs Apple Bank)", async () => {
+    const { companySimilar } = await import("@/server/services/classification/sanitize")
+    expect(companySimilar("Apple", "Apple Bank")).toBe(false)
+  })
+
+  it("returns false for empty strings", async () => {
+    const { companySimilar } = await import("@/server/services/classification/sanitize")
+    expect(companySimilar("", "Autism Today Foundation")).toBe(false)
+    expect(companySimilar("Autism Today", "")).toBe(false)
+  })
+
+  it("is case-insensitive", async () => {
+    const { companySimilar } = await import("@/server/services/classification/sanitize")
+    expect(companySimilar("autism today", "AUTISM TODAY FOUNDATION")).toBe(true)
+  })
+
+  it("returns false when words don't overlap despite same length", async () => {
+    const { companySimilar } = await import("@/server/services/classification/sanitize")
+    expect(companySimilar("Open Door", "Closed Gate")).toBe(false)
+  })
+})
+
+describe("normalizeRoleTitle — parenthetical expansion", () => {
+  it("expands parenthetical content as words rather than stripping it", async () => {
+    const { normalizeRoleTitle } = await import("@/server/services/classification/sanitize")
+    const result = normalizeRoleTitle("Volunteer (Creative/Developer)")
+    // Should contain words from inside the parens, not discard them
+    expect(result).toContain("volunteer")
+    expect(result).toContain("creative")
+    expect(result).toContain("develop")
+  })
+
+  it("still normalizes seniority levels that appear inside parens", async () => {
+    const { normalizeRoleTitle } = await import("@/server/services/classification/sanitize")
+    const result = normalizeRoleTitle("Engineer (Senior)")
+    expect(result).not.toContain("senior")
+    expect(result).toContain("engineer")
+  })
+})
+
+describe("roleTitlesSimilar — overlap coefficient", () => {
+  it("merges 'Volunteer Developer' and 'Creative Developer' (shared: develop)", async () => {
+    const { roleTitlesSimilar } = await import("@/server/services/classification/sanitize")
+    expect(roleTitlesSimilar("Volunteer Developer", "Creative Developer")).toBe(true)
+  })
+
+  it("merges 'Volunteer (Creative/Developer)' and 'Volunteer Developer' after parens expansion", async () => {
+    const { roleTitlesSimilar } = await import("@/server/services/classification/sanitize")
+    expect(roleTitlesSimilar("Volunteer (Creative/Developer)", "Volunteer Developer")).toBe(true)
+  })
+
+  it("merges 'Volunteer Developer' and 'Full Stack Development Coordinator' (shared: develop)", async () => {
+    const { roleTitlesSimilar } = await import("@/server/services/classification/sanitize")
+    expect(roleTitlesSimilar("Volunteer Developer", "Full Stack Development Coordinator")).toBe(true)
+  })
+
+  it("does NOT merge roles with zero word overlap", async () => {
+    const { roleTitlesSimilar } = await import("@/server/services/classification/sanitize")
+    expect(roleTitlesSimilar("Marketing Manager", "Software Developer")).toBe(false)
+  })
+
+  it("returns false for empty strings", async () => {
+    const { roleTitlesSimilar } = await import("@/server/services/classification/sanitize")
+    expect(roleTitlesSimilar("", "Software Developer")).toBe(false)
+    expect(roleTitlesSimilar("Software Developer", "")).toBe(false)
+  })
+})

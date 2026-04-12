@@ -1,9 +1,10 @@
 "use client"
 import { useState, useCallback, useMemo } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { applicationStatus } from "@/app/generated/prisma/enums"
 import { type Application } from "@/types/application"
 import ApplicationTable from "@/components/dashboard/ApplicationTable"
+import KanbanBoard from "@/components/dashboard/KanbanBoard"
 import Sidebar from "@/components/dashboard/Sidebar"
 import { toast } from "@/lib/toast"
 
@@ -23,6 +24,8 @@ export default function DashboardContent({
   onApproveReview,
 }: Props) {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const view: "table" | "kanban" = searchParams.get("view") === "kanban" ? "kanban" : "table"
   const [selectedId, setSelectedId] = useState<string | null>(null)
 
   const nonReview = useMemo(
@@ -89,16 +92,27 @@ export default function DashboardContent({
   return (
     <div className="flex gap-4 py-4">
       <div className={selectedApp ? "w-3/5 transition-[width] duration-200" : "w-full"}>
-        <ApplicationTable
-          applications={applications}
-          onStatusChange={onStatusChange}
-          onNotesSave={async () => {}}
-          onApproveReview={handleApprove}
-          onDismiss={handleDismiss}
-          onDelete={handleDelete}
-          onSelectApp={setSelectedId}
-          selectedAppId={selectedId}
-        />
+        {view === "kanban" ? (
+          <KanbanBoard
+            applications={applications}
+            selectedId={selectedId}
+            onSelect={setSelectedId}
+            onStatusChange={onStatusChange}
+            onApproveReview={handleApprove}
+            onDismissReview={handleDismiss}
+          />
+        ) : (
+          <ApplicationTable
+            applications={applications}
+            onStatusChange={onStatusChange}
+            onNotesSave={async () => {}}
+            onApproveReview={handleApprove}
+            onDismiss={handleDismiss}
+            onDelete={handleDelete}
+            onSelectApp={setSelectedId}
+            selectedAppId={selectedId}
+          />
+        )}
       </div>
 
       {selectedApp && (

@@ -57,7 +57,7 @@ export function normalizeRoleTitle(title: string): string {
   let s = title.toLowerCase()
   s = s.replace(/\b(senior|junior|lead|staff|principal|sr|jr|entry[\s-]level|mid[\s-]level|associate|intermediate)\b/g, "")
   s = s.replace(/\b(contract|permanent|full[\s-]time|part[\s-]time|intern|internship|co[\s-]op|new\s+grad(?:uate)?)\b/g, "")
-  s = s.replace(/[\(\[][^\)\]]*[\)\]]/g, "")
+  s = s.replace(/[\(\[]/g, " ").replace(/[\)\]]/g, " ")
   s = s.replace(/\bdevelop(?:er|ment|ing|ed)?\b/g, "develop")
   s = s.replace(/\bengineer(?:ing)?\b/g, "engineer")
   s = s.replace(/[-\/|,\.&+]/g, " ")
@@ -70,8 +70,21 @@ export function roleTitlesSimilar(a: string, b: string): boolean {
   const wordsB = new Set(normalizeRoleTitle(b).split(" ").filter((w) => w.length > 2))
   if (wordsA.size === 0 || wordsB.size === 0) return false
   const intersection = [...wordsA].filter((w) => wordsB.has(w)).length
-  const union = new Set([...wordsA, ...wordsB]).size
-  return intersection / union >= 0.6
+  const minSize = Math.min(wordsA.size, wordsB.size)
+  return intersection / minSize >= 0.5
+}
+
+/** Returns true if all words in the shorter company name appear in the longer one.
+ *  Requires ≥2 words in the shorter name to avoid false matches (e.g. "Apple" vs "Apple Bank").
+ *  e.g. "Autism Today" ⊆ "Autism Today Foundation" → true
+ */
+export function companySimilar(a: string, b: string): boolean {
+  if (!a || !b) return false
+  const wordsA = new Set(a.toLowerCase().split(/\s+/).filter((w) => w.length > 1))
+  const wordsB = new Set(b.toLowerCase().split(/\s+/).filter((w) => w.length > 1))
+  const [shorter, longer] = wordsA.size <= wordsB.size ? [wordsA, wordsB] : [wordsB, wordsA]
+  if (shorter.size < 2) return false
+  return [...shorter].every((w) => longer.has(w))
 }
 
 // ─── Sanitize result ──────────────────────────────────────────────────────────
