@@ -218,12 +218,31 @@ export default function ApplicationTable({
               <th className="text-left px-3 py-2.5 font-medium cursor-pointer select-none" onClick={() => toggleSort("appliedAt")}>
                 Date Applied<SortIcon field="appliedAt" />
               </th>
-              <th className="text-left px-3 py-2.5 font-medium cursor-pointer select-none" onClick={() => toggleSort("daysSince")}>
+              <th className="hidden lg:table-cell text-left px-3 py-2.5 font-medium cursor-pointer select-none" onClick={() => toggleSort("daysSince")}>
                 Days Since<SortIcon field="daysSince" />
               </th>
             </tr>
           </thead>
           <tbody>
+            {sorted.length === 0 && reviewItems.length === 0 && (
+              <tr>
+                <td colSpan={6} className="px-3 py-10 text-center text-sm text-muted-foreground">
+                  {filterStatus === "ALL"
+                    ? "No applications yet."
+                    : (
+                      <>
+                        No applications match this filter.{" "}
+                        <button
+                          className="underline underline-offset-2 hover:text-foreground"
+                          onClick={() => setFilterStatus("ALL")}
+                        >
+                          Clear filter
+                        </button>
+                      </>
+                    )}
+                </td>
+              </tr>
+            )}
             {sorted.map((app) => {
               const status = effectiveStatus(app)
               const isSelected = selected.has(app.id)
@@ -268,7 +287,7 @@ export default function ApplicationTable({
                   <td className="px-3 py-2.5 text-muted-foreground" title={app.appliedAt ? new Date(app.appliedAt).toLocaleDateString() : undefined}>
                     {relativeDate(app.appliedAt)}
                   </td>
-                  <td className={`px-3 py-2.5 tabular-nums ${ghostWarning ? "text-amber-600 dark:text-amber-400 font-medium" : "text-muted-foreground"}`}>
+                  <td className={`hidden lg:table-cell px-3 py-2.5 tabular-nums ${ghostWarning ? "text-amber-600 dark:text-amber-400 font-medium" : "text-muted-foreground"}`}>
                     {days > 0 ? `${days}d` : "—"}
                   </td>
                 </tr>

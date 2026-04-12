@@ -9,9 +9,11 @@ import KanbanBoard from "@/components/dashboard/KanbanBoard"
 import Sidebar from "@/components/dashboard/Sidebar"
 import CommandPalette from "@/components/dashboard/CommandPalette"
 import KeyboardCheatsheet from "@/components/dashboard/KeyboardCheatsheet"
+import WeeklySummary from "@/components/dashboard/WeeklySummary"
 import { useCommandPalette } from "@/components/dashboard/CommandPaletteProvider"
 import { useKeyboardShortcuts } from "@/lib/hooks/useKeyboardShortcuts"
-import { toast } from "@/lib/toast"
+import { toast, undoToast } from "@/lib/toast"
+import { STATUS_CONFIG } from "@/lib/constants"
 
 interface Props {
   applications: Application[]
@@ -113,9 +115,15 @@ export default function DashboardContent({
       if (!selectedApp) return
       const next = KANBAN_COLUMN_ORDER[idx]
       if (!next || next === selectedApp.status) return
+      const prev = selectedApp.status
+      const appId = selectedApp.id
       try {
-        await onStatusChange(selectedApp.id, selectedApp.status, next)
+        await onStatusChange(appId, prev, next)
         router.refresh()
+        undoToast(`Status → ${STATUS_CONFIG[next].label}`, async () => {
+          await onStatusChange(appId, next, prev)
+          router.refresh()
+        })
       } catch {
         toast.error("Failed to change status")
       }
@@ -165,8 +173,12 @@ export default function DashboardContent({
   useKeyboardShortcuts(shortcuts)
 
   return (
-    <div className="flex gap-4 py-4">
-      <div className={selectedApp ? "w-3/5 transition-[width] duration-200" : "w-full"}>
+    <div className="py-4">
+    <div className="mb-4">
+      <WeeklySummary applications={applications} />
+    </div>
+    <div className="flex flex-col md:flex-row gap-4">
+      <div className={selectedApp ? "w-full md:w-3/5 transition-[width] duration-200" : "w-full"}>
         {view === "kanban" ? (
           <KanbanBoard
             applications={applications}
@@ -191,7 +203,7 @@ export default function DashboardContent({
       </div>
 
       {selectedApp && (
-        <div className="w-2/5 min-h-[60vh]">
+        <div className="w-full md:w-2/5 min-h-[60vh]">
           <Sidebar
             key={selectedApp.id}
             app={selectedApp}
@@ -213,6 +225,7 @@ export default function DashboardContent({
         onStatusChange={onStatusChange}
       />
       <KeyboardCheatsheet open={cheatsheetOpen} onClose={() => setCheatsheetOpen(false)} />
+    </div>
     </div>
   )
 }
