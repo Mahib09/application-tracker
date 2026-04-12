@@ -1,11 +1,16 @@
 "use client"
 import { useState, useCallback, useMemo } from "react"
-import { useRouter, useSearchParams } from "next/navigation"
+import { useRouter, useSearchParams, usePathname } from "next/navigation"
 import { applicationStatus } from "@/app/generated/prisma/enums"
 import { type Application } from "@/types/application"
+import { KANBAN_COLUMN_ORDER } from "@/lib/constants"
 import ApplicationTable from "@/components/dashboard/ApplicationTable"
 import KanbanBoard from "@/components/dashboard/KanbanBoard"
 import Sidebar from "@/components/dashboard/Sidebar"
+import CommandPalette from "@/components/dashboard/CommandPalette"
+import KeyboardCheatsheet from "@/components/dashboard/KeyboardCheatsheet"
+import { useCommandPalette } from "@/components/dashboard/CommandPaletteProvider"
+import { useKeyboardShortcuts } from "@/lib/hooks/useKeyboardShortcuts"
 import { toast } from "@/lib/toast"
 
 interface Props {
@@ -24,9 +29,23 @@ export default function DashboardContent({
   onApproveReview,
 }: Props) {
   const router = useRouter()
+  const pathname = usePathname()
   const searchParams = useSearchParams()
   const view: "table" | "kanban" = searchParams.get("view") === "kanban" ? "kanban" : "table"
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [cheatsheetOpen, setCheatsheetOpen] = useState(false)
+  const { isOpen: paletteOpen, open: openPalette, close: closePalette } = useCommandPalette()
+
+  const setView = useCallback(
+    (next: "table" | "kanban") => {
+      const params = new URLSearchParams(searchParams.toString())
+      if (next === "kanban") params.set("view", "kanban")
+      else params.delete("view")
+      const qs = params.toString()
+      router.replace(qs ? `${pathname}?${qs}` : pathname)
+    },
+    [router, pathname, searchParams],
+  )
 
   const nonReview = useMemo(
     () => applications.filter((a) => a.status !== applicationStatus.NEEDS_REVIEW),
@@ -89,6 +108,62 @@ export default function DashboardContent({
     }
   }, [onApproveReview, router])
 
+  const shortcuts = useMemo(() => {
+    const setStatus = (idx: number) => async () => {
+      if (!selectedApp) return
+      const next = KANBAN_COLUMN_ORDER[idx]
+      if (!next || next === selectedApp.status) return
+      try {
+        await onStatusChange(selectedApp.id, selectedApp.status, next)
+        router.refresh()
+      } catch {
+        toast.error("Failed to change status")
+      }
+    }
+    return {
+      j: () => {
+        if (nonReview.length === 0) return
+        if (selectedIndex < 0) setSelectedId(nonReview[0].id)
+        else if (selectedIndex < nonReview.length - 1)
+          setSelectedId(nonReview[selectedIndex + 1].id)
+      },
+      k: () => {
+        if (nonReview.length === 0) return
+        if (selectedIndex > 0) setSelectedId(nonReview[selectedIndex - 1].id)
+      },
+      t: () => setView("table"),
+      g: () => setView("kanban"),
+      d: () => {
+        if (selectedApp) handleDelete(selectedApp.id)
+      },
+      "1": setStatus(0),
+      "2": setStatus(1),
+      "3": setStatus(2),
+      "4": setStatus(3),
+      "5": setStatus(4),
+      "?": () => setCheatsheetOpen((v) => !v),
+      Escape: () => {
+        if (paletteOpen) closePalette()
+        else if (cheatsheetOpen) setCheatsheetOpen(false)
+        else if (selectedId) setSelectedId(null)
+      },
+    }
+  }, [
+    nonReview,
+    selectedIndex,
+    selectedApp,
+    selectedId,
+    setView,
+    handleDelete,
+    onStatusChange,
+    router,
+    paletteOpen,
+    cheatsheetOpen,
+    closePalette,
+  ])
+
+  useKeyboardShortcuts(shortcuts)
+
   return (
     <div className="flex gap-4 py-4">
       <div className={selectedApp ? "w-3/5 transition-[width] duration-200" : "w-full"}>
@@ -130,6 +205,14 @@ export default function DashboardContent({
           />
         </div>
       )}
+
+      <CommandPalette
+        applications={nonReview}
+        selectedId={selectedId}
+        onSelectApp={setSelectedId}
+        onStatusChange={onStatusChange}
+      />
+      <KeyboardCheatsheet open={cheatsheetOpen} onClose={() => setCheatsheetOpen(false)} />
     </div>
   )
 }
