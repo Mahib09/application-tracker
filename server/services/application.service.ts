@@ -2,6 +2,7 @@ import { prisma } from "../lib/prisma";
 import {
   applicationStatus,
   applicationSource,
+  changeTrigger,
 } from "@/app/generated/prisma/enums";
 
 type CreateApplicationInput = {
@@ -17,7 +18,13 @@ type CreateApplicationInput = {
 
 type UpdateApplicationInput = {
   status?: applicationStatus;
+  company?: string;
+  roleTitle?: string;
+  location?: string;
+  jobUrl?: string;
+  appliedAt?: Date;
   notes?: string;
+  trigger?: changeTrigger;
 };
 
 export async function createApplication(
@@ -76,7 +83,9 @@ export async function updateApplication(
     throw new Error("applicationId is required");
   }
 
-  if (!patch.notes && !patch.status) {
+  const { trigger, ...data } = patch;
+
+  if (Object.keys(data).length === 0) {
     throw new Error("No changes");
   }
 
@@ -87,23 +96,38 @@ export async function updateApplication(
     },
     select: {
       id: true,
+      status: true,
     },
   });
 
-  if (application) {
-    const update = await prisma.application.update({
-      where: {
-        id: application.id,
-      },
-      data: {
-        ...patch,
-      },
-    });
-
-    return update;
-  } else {
+  if (!application) {
     throw new Error("application not found");
   }
+
+  const statusChanged = data.status && data.status !== application.status;
+
+  if (statusChanged) {
+    return prisma.$transaction(async (tx) => {
+      const updated = await tx.application.update({
+        where: { id: application.id },
+        data,
+      });
+      await tx.statusChange.create({
+        data: {
+          applicationId: application.id,
+          fromStatus: application.status,
+          toStatus: data.status!,
+          trigger: trigger ?? changeTrigger.MANUAL,
+        },
+      });
+      return updated;
+    });
+  }
+
+  return prisma.application.update({
+    where: { id: application.id },
+    data,
+  });
 }
 
 export async function deleteApplication(
@@ -134,4 +158,11 @@ export async function deleteApplication(
   });
 
   return { deleted: true };
+}
+
+export async function getStatusHistory(applicationId: string) {
+  return prisma.statusChange.findMany({
+    where: { applicationId },
+    orderBy: { createdAt: "desc" },
+  });
 }

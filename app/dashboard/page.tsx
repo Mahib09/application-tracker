@@ -4,9 +4,7 @@ import { listApplications, updateApplication, deleteApplication } from "@/server
 import { prisma } from "@/server/lib/prisma"
 import { applicationStatus } from "@/app/generated/prisma/enums"
 import DashboardShell from "@/components/layout/DashboardShell"
-import StatsBar from "@/components/StatsBar"
-import ApplicationTable from "@/components/ApplicationTable"
-import ReviewQueue from "@/components/ReviewQueue"
+import DashboardContent from "@/components/dashboard/DashboardContent"
 import OnboardingEmptyState from "@/components/OnboardingEmptyState"
 
 const COOLDOWN_MS = 15 * 60 * 1000
@@ -27,7 +25,6 @@ export default async function DashboardPage() {
   ])
 
   const cooldownMs = computeCooldownMs(syncState?.lastSyncedAt ?? null)
-  const needsReview = applications.filter((a) => a.status === applicationStatus.NEEDS_REVIEW)
   const isFirstTimeUser = applications.length === 0 && !syncState
 
   async function handleStatusChange(_id: string, _prev: applicationStatus, _next: applicationStatus) {
@@ -35,26 +32,19 @@ export default async function DashboardPage() {
     await updateApplication(userId, _id, { status: _next })
   }
 
-  async function handleNotesSave(_id: string, _notes: string) {
+  async function handleUpdate(_id: string, patch: Record<string, unknown>) {
     "use server"
-    await updateApplication(userId, _id, { notes: _notes })
+    await updateApplication(userId, _id, patch as Parameters<typeof updateApplication>[2])
+  }
+
+  async function handleDelete(_id: string) {
+    "use server"
+    await deleteApplication(userId, _id)
   }
 
   async function handleApproveReview(_id: string, _status: applicationStatus) {
     "use server"
     await updateApplication(userId, _id, { status: _status })
-  }
-
-  async function handleDismissApplication(_id: string) {
-    "use server"
-    await deleteApplication(userId, _id)
-  }
-
-  async function handleBulkApprove(_ids: string[]) {
-    "use server"
-    await Promise.all(
-      _ids.map((id) => updateApplication(userId, id, { status: applicationStatus.APPLIED })),
-    )
   }
 
   if (isFirstTimeUser) {
@@ -72,32 +62,12 @@ export default async function DashboardPage() {
       lastSyncedAt={syncState?.lastSyncedAt ?? null}
       cooldownMs={cooldownMs}
     >
-      {/* Stats */}
-      <StatsBar applications={applications} />
-
-      {/* Review Queue — only when items exist */}
-      {needsReview.length > 0 && (
-        <ReviewQueue
-          applications={needsReview.map((a) => ({
-            id: a.id,
-            company: a.company,
-            roleTitle: a.roleTitle,
-            status: a.status,
-            appliedAt: a.appliedAt,
-            location: a.location,
-            confidence: a.confidence,
-          }))}
-          onApprove={handleApproveReview}
-          onDismiss={handleDismissApplication}
-          onBulkApprove={handleBulkApprove}
-        />
-      )}
-
-      {/* Application Table */}
-      <ApplicationTable
+      <DashboardContent
         applications={applications}
         onStatusChange={handleStatusChange}
-        onNotesSave={handleNotesSave}
+        onUpdate={handleUpdate}
+        onDelete={handleDelete}
+        onApproveReview={handleApproveReview}
       />
     </DashboardShell>
   )

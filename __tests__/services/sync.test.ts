@@ -11,6 +11,10 @@ vi.mock("@/server/lib/prisma", () => ({
       updateMany: vi.fn(),
       deleteMany: vi.fn(),
     },
+    statusChange: {
+      create: vi.fn(),
+      createMany: vi.fn(),
+    },
   },
 }))
 
@@ -22,11 +26,12 @@ vi.mock("@/server/services/gmail.service", () => ({
 vi.mock("@/server/services/classification.service", () => ({
   classifyPipeline: vi.fn(),
   roleTitlesSimilar: vi.fn(),
+  companySimilar: vi.fn(),
 }))
 
 import { prisma } from "@/server/lib/prisma"
 import { getGmailClient, fetchEmailsSince } from "@/server/services/gmail.service"
-import { classifyPipeline, roleTitlesSimilar } from "@/server/services/classification.service"
+import { classifyPipeline, roleTitlesSimilar, companySimilar } from "@/server/services/classification.service"
 
 const MOCK_CLIENT = { token: "mock-oauth-client" } as any
 const NOW = new Date("2025-03-24T12:00:00Z")
@@ -47,6 +52,7 @@ beforeEach(() => {
   vi.mocked(prisma.application.updateMany).mockResolvedValue({ count: 0 } as any)
   vi.mocked(prisma.application.findMany).mockResolvedValue([])
   vi.mocked(roleTitlesSimilar).mockReturnValue(false)
+  vi.mocked(companySimilar).mockReturnValue(false)
 })
 
 // ─── Cooldown ────────────────────────────────────────────────────────────────
@@ -475,6 +481,39 @@ describe("syncApplications — application upsert", () => {
   })
 })
 
+// ─── Company name variant matching ───────────────────────────────────────────
+
+describe("syncApplications — company name similarity (Tier 2.75)", () => {
+  it("merges incoming 'Autism Today' with existing 'Autism Today Foundation'", async () => {
+    const existing = {
+      id: "app-variant", company: "Autism Today Foundation", roleTitle: "Volunteer Developer",
+      status: "APPLIED", appliedAt: new Date(NOW.getTime() - 5 * 24 * 60 * 60 * 1000), location: null,
+    }
+    // Tiers 1, 2, 2.5, 3 all fail (different company name)
+    vi.mocked(prisma.application.findFirst).mockResolvedValue(null)
+    vi.mocked(prisma.application.findMany)
+      .mockResolvedValueOnce([])            // tier 2.5: same-company candidates
+      .mockResolvedValueOnce([existing as any]) // tier 2.75: all-user applications
+    // companySimilar returns true for "Autism Today" ↔ "Autism Today Foundation"
+    vi.mocked(companySimilar).mockReturnValue(true)
+    vi.mocked(roleTitlesSimilar).mockReturnValue(true)
+    vi.mocked(prisma.application.update).mockResolvedValue({} as any)
+    vi.mocked(classifyPipeline).mockResolvedValue({
+      results: [{
+        messageId: "m-variant", company: "Autism Today", roleTitle: "Volunteer Developer",
+        status: "INTERVIEW", date: NOW, location: null,
+      }],
+      stats: ZERO_STATS,
+    })
+
+    const { syncApplications } = await import("@/server/services/sync.service")
+    const result = await syncApplications("user-1")
+
+    expect(prisma.application.create).not.toHaveBeenCalled()
+    expect(result.updated).toBe(1)
+  })
+})
+
 // ─── SyncState updates ───────────────────────────────────────────────────────
 
 describe("syncApplications — SyncState", () => {
@@ -539,32 +578,47 @@ describe("syncApplications — SyncState", () => {
 describe("syncApplications — GHOSTED sweep", () => {
   it("marks APPLIED/INTERVIEW GMAIL applications as GHOSTED after 30 days", async () => {
     vi.mocked(prisma.syncState.findUnique).mockResolvedValue(null)
+    vi.mocked(prisma.application.findMany).mockResolvedValue([
+      { id: "a1", status: "APPLIED" },
+      { id: "a2", status: "APPLIED" },
+      { id: "a3", status: "INTERVIEW" },
+    ] as any)
     vi.mocked(prisma.application.updateMany).mockResolvedValue({ count: 3 } as any)
 
     const { syncApplications } = await import("@/server/services/sync.service")
     const result = await syncApplications("user-1")
 
-    expect(prisma.application.updateMany).toHaveBeenCalledWith(
+    expect(prisma.application.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({
           userId: "user-1",
           source: "GMAIL",
           status: expect.objectContaining({ in: expect.arrayContaining(["APPLIED", "INTERVIEW"]) }),
         }),
+      })
+    )
+    expect(prisma.application.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: { in: ["a1", "a2", "a3"] } },
         data: { status: "GHOSTED" },
       })
     )
+    expect(prisma.statusChange.createMany).toHaveBeenCalled()
     expect(result.ghosted).toBe(3)
   })
 
   it("does not ghost OFFER or REJECTED applications", async () => {
     vi.mocked(prisma.syncState.findUnique).mockResolvedValue(null)
+    vi.mocked(prisma.application.findMany).mockResolvedValue([] as any)
 
     const { syncApplications } = await import("@/server/services/sync.service")
     await syncApplications("user-1")
 
-    const call = vi.mocked(prisma.application.updateMany).mock.calls[0][0]
-    const statusIn = (call.where?.status as any)?.in as string[]
+    const ghostCall = vi.mocked(prisma.application.findMany).mock.calls.find(
+      (c) => (c[0]?.where as any)?.source === "GMAIL"
+    )
+    expect(ghostCall).toBeDefined()
+    const statusIn = ((ghostCall![0]!.where as any).status as any).in as string[]
     expect(statusIn).not.toContain("OFFER")
     expect(statusIn).not.toContain("REJECTED")
   })

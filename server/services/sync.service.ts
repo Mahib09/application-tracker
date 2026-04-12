@@ -167,15 +167,28 @@ async function upsertResult(
 
     if (!hasChanges) return "skipped";
 
+    const newStatus = shouldUpdateStatus ? (result.status as any) : existing.status;
     await prisma.application.update({
       where: { id: existing.id },
       data: {
-        status: shouldUpdateStatus ? (result.status as any) : existing.status,
+        status: newStatus,
         appliedAt: shouldUpdateDate ? result.date : existing.appliedAt,
         roleTitle: enrichedRole,
         location: enrichedLocation,
       },
     });
+
+    if (shouldUpdateStatus && newStatus !== existing.status) {
+      await prisma.statusChange.create({
+        data: {
+          applicationId: existing.id,
+          fromStatus: existing.status,
+          toStatus: newStatus,
+          trigger: "SYNC" as any,
+        },
+      });
+    }
+
     return "updated";
   }
 
@@ -278,16 +291,33 @@ export async function syncApplications(userId: string): Promise<SyncResult> {
     }
 
     // 6. GHOSTED sweep — runs after new emails processed
-    const ghostedResult = await prisma.application.updateMany({
+    const ghostCandidates = await prisma.application.findMany({
       where: {
         userId,
         source: "GMAIL" as any,
         status: { in: ["APPLIED", "INTERVIEW"] as any[] },
         updatedAt: { lt: new Date(Date.now() - GHOSTED_AFTER_MS) },
       },
-      data: { status: "GHOSTED" as any },
+      select: { id: true, status: true },
     });
-    const ghosted = ghostedResult.count;
+
+    let ghosted = 0;
+    if (ghostCandidates.length > 0) {
+      const ghostIds = ghostCandidates.map((g) => g.id);
+      await prisma.application.updateMany({
+        where: { id: { in: ghostIds } },
+        data: { status: "GHOSTED" as any },
+      });
+      await prisma.statusChange.createMany({
+        data: ghostCandidates.map((g) => ({
+          applicationId: g.id,
+          fromStatus: g.status,
+          toStatus: "GHOSTED" as any,
+          trigger: "AUTO_GHOST" as any,
+        })),
+      });
+      ghosted = ghostCandidates.length;
+    }
 
     // 7. Update SyncState to SUCCESS
     await prisma.syncState.upsert({
