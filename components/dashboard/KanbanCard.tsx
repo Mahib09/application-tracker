@@ -3,6 +3,8 @@ import { type Application } from "@/types/application"
 import { applicationStatus } from "@/app/generated/prisma/enums"
 import GhostProgressRing from "@/components/dashboard/GhostProgressRing"
 import { motion } from "motion/react"
+import { useReducedMotion } from "@/lib/hooks/useReducedMotion"
+import { useMediaQuery } from "@/lib/hooks/useMediaQuery"
 
 interface Props {
   app: Application
@@ -21,20 +23,23 @@ function daysSince(date: Date | string | null): number {
 export default function KanbanCard({ app, selected, onSelect, onDragStart, onDragEnd }: Props) {
   const days = daysSince(app.appliedAt)
   const isApplied = app.status === applicationStatus.APPLIED
+  const reduced = useReducedMotion()
+  const isMobile = useMediaQuery("(max-width: 767px)")
+  const canDrag = !isMobile
 
   return (
     <motion.div
-      layout
-      draggable
+      layout={!reduced}
+      draggable={canDrag}
       onDragStart={(e) => {
         ;(e as unknown as DragEvent).dataTransfer?.setData("text/plain", app.id)
         onDragStart(app.id)
       }}
       onDragEnd={onDragEnd}
       onClick={() => onSelect(app.id)}
-      whileHover={{ y: -1 }}
-      whileDrag={{ scale: 1.03, boxShadow: "0 12px 24px rgba(0,0,0,0.18)" }}
-      transition={{ type: "spring", stiffness: 500, damping: 30 }}
+      whileHover={reduced ? undefined : { y: -1 }}
+      whileDrag={reduced ? undefined : { scale: 1.03, boxShadow: "0 12px 24px rgba(0,0,0,0.18)" }}
+      transition={reduced ? { duration: 0 } : { type: "spring", stiffness: 500, damping: 30 }}
       className={`group cursor-grab active:cursor-grabbing rounded-md border bg-card px-3 py-2.5 shadow-sm hover:border-foreground/20 ${
         selected ? "border-foreground/40 ring-1 ring-foreground/20" : "border-border"
       }`}

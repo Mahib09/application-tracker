@@ -3,6 +3,7 @@ import { applicationStatus } from "@/app/generated/prisma/enums"
 import { Button } from "@/components/ui/button"
 import { STATUS_CONFIG, STATUS_COLORS, STATUS_DISPLAY_ORDER } from "@/lib/constants"
 import { motion, AnimatePresence } from "motion/react"
+import { useReducedMotion } from "@/lib/hooks/useReducedMotion"
 import { X, Trash2 } from "lucide-react"
 import { useState } from "react"
 
@@ -15,15 +16,16 @@ interface Props {
 
 export default function BulkActionBar({ count, onChangeStatus, onDelete, onDeselect }: Props) {
   const [showStatuses, setShowStatuses] = useState(false)
+  const reduced = useReducedMotion()
 
   return (
     <AnimatePresence>
       {count > 0 && (
         <motion.div
-          initial={{ y: 16, opacity: 0 }}
+          initial={reduced ? { opacity: 0 } : { y: 16, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
-          exit={{ y: 16, opacity: 0 }}
-          transition={{ duration: 0.15, ease: "easeOut" }}
+          exit={reduced ? { opacity: 0 } : { y: 16, opacity: 0 }}
+          transition={{ duration: reduced ? 0 : 0.15, ease: "easeOut" }}
           className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-2.5 shadow-lg"
         >
           <span className="text-sm font-medium text-foreground tabular-nums">{count} selected</span>

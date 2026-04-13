@@ -1,9 +1,10 @@
 "use client"
-import { useMemo, useState, useEffect } from "react"
+import { useMemo } from "react"
 import { BarChart, Bar, XAxis, Tooltip, ResponsiveContainer } from "recharts"
 import { ChevronDown, ChevronUp } from "lucide-react"
 import { applicationStatus } from "@/app/generated/prisma/enums"
 import { type Application } from "@/types/application"
+import { useLocalStorage } from "@/lib/hooks/useLocalStorage"
 
 interface Props {
   applications: Application[]
@@ -23,20 +24,8 @@ function dayLabel(d: Date): string {
 }
 
 export default function WeeklySummary({ applications }: Props) {
-  const [collapsed, setCollapsed] = useState(false)
-
-  useEffect(() => {
-    const saved = localStorage.getItem(LS_KEY)
-    if (saved === "1") setCollapsed(true)
-  }, [])
-
-  const toggle = () => {
-    setCollapsed((v) => {
-      const next = !v
-      localStorage.setItem(LS_KEY, next ? "1" : "0")
-      return next
-    })
-  }
+  const [collapsed, setCollapsed] = useLocalStorage<boolean>(LS_KEY, false)
+  const toggle = () => setCollapsed((v) => !v)
 
   const { data, thisWeek, lastWeek } = useMemo(() => {
     const today = startOfDay(new Date())

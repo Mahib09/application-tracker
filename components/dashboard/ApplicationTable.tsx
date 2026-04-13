@@ -18,7 +18,7 @@ interface Props {
   onNotesSave: (id: string, notes: string) => Promise<void>
   onApproveReview: (id: string, status: applicationStatus) => Promise<void>
   onDismiss: (id: string) => Promise<void>
-  onDelete: (id: string) => Promise<void>
+  onDelete: (id: string) => void | Promise<void>
   onSelectApp: (id: string) => void
   selectedAppId: string | null
 }
@@ -243,22 +243,24 @@ export default function ApplicationTable({
                 </td>
               </tr>
             )}
-            {sorted.map((app) => {
+            {sorted.map((app, i) => {
               const status = effectiveStatus(app)
               const isSelected = selected.has(app.id)
               const isActive = selectedAppId === app.id
               const days = daysSince(app.appliedAt)
               const ghostWarning = status === applicationStatus.APPLIED && days >= 20
+              const stagger = Math.min(i, 12) * 20
 
               return (
                 <tr
                   key={app.id}
                   className={`
                     border-b border-border/50 cursor-pointer transition-colors
+                    animate-in fade-in slide-in-from-bottom-1 duration-200
                     ${isActive ? "bg-muted/70" : "hover:bg-muted/40"}
                     ${anySelected ? "" : "group"}
                   `}
-                  style={{ borderLeft: `3px solid ${STATUS_COLORS[status]}` }}
+                  style={{ borderLeft: `3px solid ${STATUS_COLORS[status]}`, animationDelay: `${stagger}ms` }}
                   onClick={() => onSelectApp(app.id)}
                   onContextMenu={(e) => {
                     e.preventDefault()

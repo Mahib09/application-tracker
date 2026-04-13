@@ -36,6 +36,13 @@ const SECTIONS: { heading: string; items: { keys: string[]; label: string }[] }[
       { keys: ["D"], label: "Delete" },
     ],
   },
+  {
+    heading: "Review queue",
+    items: [
+      { keys: ["Y"], label: "Confirm first review item" },
+      { keys: ["N"], label: "Dismiss first review item" },
+    ],
+  },
 ]
 
 export default function KeyboardCheatsheet({ open, onClose }: Props) {

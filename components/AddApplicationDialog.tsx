@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { applicationStatus } from "@/app/generated/prisma/enums"
 import {
@@ -36,6 +36,12 @@ export default function AddApplicationDialog() {
     jobUrl: "",
     notes: "",
   })
+
+  useEffect(() => {
+    const handler = () => setOpen(true)
+    window.addEventListener("open-add-dialog", handler)
+    return () => window.removeEventListener("open-add-dialog", handler)
+  }, [])
 
   const field = (key: keyof typeof form) => (
     (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>

@@ -1,4 +1,5 @@
 import { prisma } from "@/server/lib/prisma";
+import { applicationStatus } from "@/app/generated/prisma/enums";
 import {
   getGmailClient,
   fetchEmailsSince,
@@ -14,6 +15,7 @@ export interface SyncResult {
   synced: number;
   updated: number;
   ghosted: number;
+  ghostedRecords?: { id: string; fromStatus: applicationStatus }[];
   skipped: boolean;
   cooldownMs: number;
   lastSyncedAt: Date;
@@ -302,6 +304,7 @@ export async function syncApplications(userId: string): Promise<SyncResult> {
     });
 
     let ghosted = 0;
+    const ghostedRecords: { id: string; fromStatus: applicationStatus }[] = [];
     if (ghostCandidates.length > 0) {
       const ghostIds = ghostCandidates.map((g) => g.id);
       await prisma.application.updateMany({
@@ -317,6 +320,9 @@ export async function syncApplications(userId: string): Promise<SyncResult> {
         })),
       });
       ghosted = ghostCandidates.length;
+      for (const g of ghostCandidates) {
+        ghostedRecords.push({ id: g.id, fromStatus: g.status as applicationStatus });
+      }
     }
 
     // 7. Update SyncState to SUCCESS
@@ -343,6 +349,7 @@ export async function syncApplications(userId: string): Promise<SyncResult> {
       synced,
       updated,
       ghosted,
+      ghostedRecords,
       skipped: false,
       cooldownMs: 0,
       lastSyncedAt: now,

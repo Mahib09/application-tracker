@@ -41,7 +41,7 @@ export default function KanbanColumn({
         const id = e.dataTransfer.getData("text/plain")
         if (id) onDropCard(id, status)
       }}
-      className={`flex min-h-[60vh] w-64 shrink-0 flex-col rounded-lg border bg-muted/30 ${
+      className={`flex min-h-[60vh] w-[80vw] md:w-64 shrink-0 snap-center md:snap-align-none flex-col rounded-lg border bg-muted/30 ${
         over ? "border-foreground/40 bg-muted/60" : "border-border"
       }`}
     >

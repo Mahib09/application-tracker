@@ -104,7 +104,7 @@ export default function KanbanBoard({
       )}
 
       <div
-        className="flex gap-3 overflow-x-auto pb-2"
+        className="flex gap-3 overflow-x-auto pb-2 snap-x snap-mandatory md:snap-none"
         onDragEnd={() => setDraggingId(null)}
       >
         {KANBAN_COLUMN_ORDER.map((s) => (

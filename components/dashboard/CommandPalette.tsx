@@ -7,7 +7,7 @@ import { STATUS_DISPLAY_ORDER, STATUS_CONFIG, STATUS_COLORS } from "@/lib/consta
 import { useCommandPalette } from "@/components/dashboard/CommandPaletteProvider"
 import { useTheme } from "next-themes"
 import { useRouter, usePathname, useSearchParams } from "next/navigation"
-import { LayoutList, LayoutGrid, Sun, Moon, Search } from "lucide-react"
+import { LayoutList, LayoutGrid, Sun, Moon, Search, Plus } from "lucide-react"
 
 
 interface Props {
@@ -120,6 +120,16 @@ export default function CommandPalette({
               heading="Actions"
               className="text-[11px] font-medium text-muted-foreground **:[[cmdk-group-heading]]:px-2 **:[[cmdk-group-heading]]:py-1.5"
             >
+              <Command.Item
+                onSelect={() =>
+                  runAndClose(() => {
+                    window.dispatchEvent(new Event("open-add-dialog"))
+                  })
+                }
+                className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm data-[selected=true]:bg-muted"
+              >
+                <Plus className="size-4" /> Add application
+              </Command.Item>
               <Command.Item
                 onSelect={() => runAndClose(() => setTheme("light"))}
                 className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm data-[selected=true]:bg-muted"

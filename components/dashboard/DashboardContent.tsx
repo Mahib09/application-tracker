@@ -12,6 +12,7 @@ import KeyboardCheatsheet from "@/components/dashboard/KeyboardCheatsheet"
 import WeeklySummary from "@/components/dashboard/WeeklySummary"
 import { useCommandPalette } from "@/components/dashboard/CommandPaletteProvider"
 import { useKeyboardShortcuts } from "@/lib/hooks/useKeyboardShortcuts"
+import { useUndoAction } from "@/lib/hooks/useUndoAction"
 import { toast, undoToast } from "@/lib/toast"
 import { STATUS_CONFIG } from "@/lib/constants"
 
@@ -36,6 +37,8 @@ export default function DashboardContent({
   const view: "table" | "kanban" = searchParams.get("view") === "kanban" ? "kanban" : "table"
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [cheatsheetOpen, setCheatsheetOpen] = useState(false)
+  const [hiddenIds, setHiddenIds] = useState<Set<string>>(new Set())
+  const undo = useUndoAction()
   const { isOpen: paletteOpen, open: openPalette, close: closePalette } = useCommandPalette()
 
   const setView = useCallback(
@@ -49,9 +52,17 @@ export default function DashboardContent({
     [router, pathname, searchParams],
   )
 
+  const visibleApplications = useMemo(
+    () => applications.filter((a) => !hiddenIds.has(a.id)),
+    [applications, hiddenIds],
+  )
   const nonReview = useMemo(
-    () => applications.filter((a) => a.status !== applicationStatus.NEEDS_REVIEW),
-    [applications],
+    () => visibleApplications.filter((a) => a.status !== applicationStatus.NEEDS_REVIEW),
+    [visibleApplications],
+  )
+  const reviewItems = useMemo(
+    () => visibleApplications.filter((a) => a.status === applicationStatus.NEEDS_REVIEW),
+    [visibleApplications],
   )
 
   const selectedApp = useMemo(
@@ -80,16 +91,35 @@ export default function DashboardContent({
     }
   }, [onUpdate, router])
 
-  const handleDelete = useCallback(async (id: string) => {
-    try {
-      await onDelete(id)
-      if (selectedId === id) setSelectedId(null)
-      toast.success("Application deleted")
-      router.refresh()
-    } catch {
-      toast.error("Failed to delete")
-    }
-  }, [onDelete, router, selectedId])
+  const handleDelete = useCallback((id: string) => {
+    const app = applications.find((a) => a.id === id)
+    if (!app) return
+    setHiddenIds((s) => new Set(s).add(id))
+    if (selectedId === id) setSelectedId(null)
+    undo.run(id, {
+      message: `Deleted ${app.company}`,
+      onCommit: async () => {
+        try {
+          await onDelete(id)
+          router.refresh()
+        } catch {
+          toast.error("Failed to delete")
+          setHiddenIds((s) => {
+            const n = new Set(s)
+            n.delete(id)
+            return n
+          })
+        }
+      },
+      onUndo: () => {
+        setHiddenIds((s) => {
+          const n = new Set(s)
+          n.delete(id)
+          return n
+        })
+      },
+    })
+  }, [applications, onDelete, router, selectedId, undo])
 
   const handleDismiss = useCallback(async (id: string) => {
     try {
@@ -150,6 +180,14 @@ export default function DashboardContent({
       "4": setStatus(3),
       "5": setStatus(4),
       "?": () => setCheatsheetOpen((v) => !v),
+      y: () => {
+        const first = reviewItems[0]
+        if (first) handleApprove(first.id, applicationStatus.APPLIED)
+      },
+      n: () => {
+        const first = reviewItems[0]
+        if (first) handleDismiss(first.id)
+      },
       Escape: () => {
         if (paletteOpen) closePalette()
         else if (cheatsheetOpen) setCheatsheetOpen(false)
@@ -158,11 +196,14 @@ export default function DashboardContent({
     }
   }, [
     nonReview,
+    reviewItems,
     selectedIndex,
     selectedApp,
     selectedId,
     setView,
     handleDelete,
+    handleApprove,
+    handleDismiss,
     onStatusChange,
     router,
     paletteOpen,
@@ -175,13 +216,13 @@ export default function DashboardContent({
   return (
     <div className="py-4">
     <div className="mb-4">
-      <WeeklySummary applications={applications} />
+      <WeeklySummary applications={visibleApplications} />
     </div>
     <div className="flex flex-col md:flex-row gap-4">
       <div className={selectedApp ? "w-full md:w-3/5 transition-[width] duration-200" : "w-full"}>
         {view === "kanban" ? (
           <KanbanBoard
-            applications={applications}
+            applications={visibleApplications}
             selectedId={selectedId}
             onSelect={setSelectedId}
             onStatusChange={onStatusChange}
@@ -190,7 +231,7 @@ export default function DashboardContent({
           />
         ) : (
           <ApplicationTable
-            applications={applications}
+            applications={visibleApplications}
             onStatusChange={onStatusChange}
             onNotesSave={async () => {}}
             onApproveReview={handleApprove}

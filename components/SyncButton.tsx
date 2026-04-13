@@ -2,7 +2,7 @@
 import { useEffect, useState, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
-import { toast } from "@/lib/toast"
+import { toast, undoToast } from "@/lib/toast"
 import { RefreshCw } from "lucide-react"
 
 interface Props {
@@ -49,6 +49,28 @@ export default function SyncButton({ lastSyncedAt, cooldownMs: initialCooldown, 
         setCooldownMs(15 * 60 * 1000)
         toast.success(`Synced ${data.synced} new application${data.synced !== 1 ? "s" : ""}`)
         router.refresh()
+        if (Array.isArray(data.ghostedRecords) && data.ghostedRecords.length > 0) {
+          const records = data.ghostedRecords as { id: string; fromStatus: string }[]
+          undoToast(
+            `${records.length} auto-ghosted after 30 days`,
+            async () => {
+              try {
+                await Promise.all(
+                  records.map((r) =>
+                    fetch(`/api/applications/${r.id}`, {
+                      method: "PATCH",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ status: r.fromStatus }),
+                    }),
+                  ),
+                )
+                router.refresh()
+              } catch {
+                toast.error("Failed to revert ghost")
+              }
+            },
+          )
+        }
       }
     } catch {
       toast.error("Sync failed — check connection")

@@ -8,12 +8,14 @@ import SidebarTimeline from "@/components/dashboard/SidebarTimeline"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { motion, AnimatePresence } from "motion/react"
+import { useReducedMotion } from "@/lib/hooks/useReducedMotion"
+import { useMediaQuery } from "@/lib/hooks/useMediaQuery"
 import { ChevronUp, ChevronDown, X, Trash2, ExternalLink } from "lucide-react"
 
 interface Props {
   app: Application
   onUpdate: (id: string, patch: Record<string, unknown>) => Promise<void>
-  onDelete: (id: string) => Promise<void>
+  onDelete: (id: string) => void | Promise<void>
   onClose: () => void
   onPrev: () => void
   onNext: () => void
@@ -24,6 +26,15 @@ interface Props {
 export default function Sidebar({ app, onUpdate, onDelete, onClose, onPrev, onNext, hasPrev, hasNext }: Props) {
   const [statusHistory, setStatusHistory] = useState<StatusChangeRecord[]>([])
   const [statusDropdown, setStatusDropdown] = useState(false)
+  const reduced = useReducedMotion()
+  const isMobile = useMediaQuery("(max-width: 767px)")
+
+  const initial = reduced ? { opacity: 0 } : isMobile ? { y: "100%" } : { x: "100%" }
+  const animate = reduced ? { opacity: 1 } : isMobile ? { y: 0 } : { x: 0 }
+  const exitTo = reduced ? { opacity: 0 } : isMobile ? { y: "100%" } : { x: "100%" }
+  const transition = reduced
+    ? { duration: 0 }
+    : ({ type: "spring", stiffness: 400, damping: 35 } as const)
 
   useEffect(() => {
     fetch(`/api/applications/${app.id}/history`)
@@ -41,11 +52,15 @@ export default function Sidebar({ app, onUpdate, onDelete, onClose, onPrev, onNe
     <AnimatePresence>
       <motion.aside
         key="sidebar"
-        initial={{ x: "100%" }}
-        animate={{ x: 0 }}
-        exit={{ x: "100%" }}
-        transition={{ type: "spring", stiffness: 400, damping: 35 }}
-        className="w-full h-full border-l border-border bg-card overflow-y-auto"
+        initial={initial}
+        animate={animate}
+        exit={exitTo}
+        transition={transition}
+        className={
+          isMobile
+            ? "fixed inset-x-0 bottom-0 z-40 max-h-[85vh] rounded-t-2xl border-t border-border bg-card overflow-y-auto shadow-2xl"
+            : "w-full h-full border-l border-border bg-card overflow-y-auto"
+        }
       >
         {/* Header */}
         <div className="sticky top-0 z-10 flex items-center justify-between border-b border-border bg-card px-4 py-2.5">
