@@ -44,4 +44,7 @@ next-env.d.ts
 
 # git worktrees
 .worktrees/
-.worktrees/
+
+# claude code
+CLAUDE.md
+docs/superpowers/

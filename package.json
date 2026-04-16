@@ -55,15 +55,24 @@
     "typescript": "^5.9.3",
     "vitest": "^4.1.0"
   },
-  "description": "This is a Next.js project bootstrapped with create-next-app.",
+  "description": "AI-powered job application tracker that classifies Gmail applications with Claude and organizes them in a kanban + table UI.",
   "main": "index.js",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/Mahib09/application-tracker.git"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "keywords": [
+    "nextjs",
+    "prisma",
+    "claude",
+    "anthropic",
+    "gmail-api",
+    "job-tracker",
+    "auth-js",
+    "typescript"
+  ],
+  "author": "Mahib",
+  "license": "MIT",
   "bugs": {
     "url": "https://github.com/Mahib09/application-tracker/issues"
   },
