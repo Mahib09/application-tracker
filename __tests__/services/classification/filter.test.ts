@@ -23,14 +23,23 @@ function makeEmail(overrides: Partial<{
 }
 
 describe("isDeterministicallyFiltered", () => {
-  it("drops email with List-Unsubscribe header that is NOT from ATS", async () => {
+  it("passes non-ATS email with List-Unsubscribe header through to Haiku", async () => {
     const { isDeterministicallyFiltered } = await import("@/server/services/classification/filter")
-    expect(isDeterministicallyFiltered(makeEmail({ listUnsubscribe: "<https://example.com/unsub>", isATS: false }))).toBe(true)
+    expect(isDeterministicallyFiltered(makeEmail({ listUnsubscribe: "<https://example.com/unsub>", isATS: false }))).toBe(false)
   })
 
   it("passes ATS email through even with List-Unsubscribe header", async () => {
     const { isDeterministicallyFiltered } = await import("@/server/services/classification/filter")
     expect(isDeterministicallyFiltered(makeEmail({ listUnsubscribe: "<https://greenhouse.io/unsub>", isATS: true }))).toBe(false)
+  })
+
+  it("passes noreply@fortive.com with List-Unsubscribe (regression: Fortive rejection)", async () => {
+    const { isDeterministicallyFiltered } = await import("@/server/services/classification/filter")
+    expect(isDeterministicallyFiltered(makeEmail({
+      from: "Fortive Talent Team <noreply@fortive.com>",
+      listUnsubscribe: "<https://fortive.com/unsub>",
+      isATS: false,
+    }))).toBe(false)
   })
 
   it("drops email from blocklisted domain (linkedin.com)", async () => {

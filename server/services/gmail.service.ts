@@ -17,22 +17,42 @@ export interface EmailRaw {
 
 // ─── From header parsing ──────────────────────────────────────────────────────
 
-export const ATS_DOMAINS = new Set([
+// Single source of truth for ATS domains — used in both Gmail query and domain detection
+export const ATS_QUERY_DOMAINS = [
   "greenhouse.io",
   "greenhouse-mail.io",
   "lever.co",
   "workday.com",
   "myworkday.com",
+  "myworkdayjobs.com",
   "ashby.com",
   "icims.com",
   "jobvite.com",
   "smartrecruiters.com",
   "taleo.net",
-  "breezy.hr",
-  "bamboohr.com",
   "successfactors.com",
+  "bamboohr.com",
+  "breezy.hr",
   "oracle.com",
-]);
+  "brassring.com",
+  "jazz.co",
+  "rippling.com",
+  "dover.com",
+  "pinpoint.com",
+  "recruiting.com",
+  "wellfound.com",
+  "ziprecruiter.com",
+  "indeed.com",
+  "hired.com",
+  "deel.com",
+  "avature.net",
+  "phenom.com",
+  "eightfold.ai",
+  "recruitee.com",
+  "hirebridge.com",
+];
+
+export const ATS_DOMAINS = new Set(ATS_QUERY_DOMAINS);
 
 const GENERIC_DOMAINS = new Set([
   "gmail.com",
@@ -153,9 +173,32 @@ export async function getGmailClient(userId: string): Promise<OAuth2Client> {
 
 // ─── Email fetch ─────────────────────────────────────────────────────────────
 
+const SUBJECT_KEYWORDS = [
+  "applied", "application", "interview", "offer", "rejection",
+  "congratulations", "assessment", "position", '"next steps"',
+  "decision", "role", '"following up"', '"follow up"', "update",
+  "status", "unfortunately", "regret", "talent", "hiring",
+  "candidate", "recruitment", "career", "onboarding", "shortlist",
+  "opportunity",
+];
+
+const BODY_PHRASES = [
+  '"we regret to inform"',
+  '"not selected"',
+  '"moved to the next stage"',
+  '"invite you to interview"',
+  '"offer letter"',
+  '"background check"',
+  '"start date"',
+  '"thank you for applying"',
+  '"not moving forward"',
+];
+
 const GMAIL_QUERY = [
-  'subject:(applied OR application OR interview OR offer OR rejection OR congratulations OR assessment OR position OR "next steps" OR decision OR role)',
-  "OR from:(greenhouse.io OR lever.co OR workday.com OR ashby.com OR myworkdayjobs.com OR icims.com OR jobvite.com OR smartrecruiters.com OR taleo.net OR successfactors.com OR bamboohr.com OR brassring.com OR jazz.co OR rippling.com OR dover.com OR pinpoint.com OR recruiting.com)",
+  `in:inbox`,
+  `{subject:(${SUBJECT_KEYWORDS.join(" OR ")})`,
+  `from:(${ATS_QUERY_DOMAINS.join(" OR ")})`,
+  `(${BODY_PHRASES.join(" OR ")})}`,
 ].join(" ");
 
 export async function fetchEmailsSince(

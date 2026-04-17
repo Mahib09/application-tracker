@@ -1,7 +1,7 @@
 "use client"
 import { useState, useCallback, useMemo } from "react"
 import { applicationStatus } from "@/app/generated/prisma/enums"
-import { STATUS_COLORS, STATUS_CONFIG, STATUS_DISPLAY_ORDER } from "@/lib/constants"
+import { STATUS_COLORS, STATUS_CONFIG } from "@/lib/constants"
 import { type Application } from "@/types/application"
 import TableFooter from "@/components/dashboard/TableFooter"
 import BulkActionBar from "@/components/dashboard/BulkActionBar"
@@ -21,6 +21,8 @@ interface Props {
   onDelete: (id: string) => void | Promise<void>
   onSelectApp: (id: string) => void
   selectedAppId: string | null
+  filterStatus: applicationStatus | "ALL"
+  onFilterChange: (status: applicationStatus | "ALL") => void
 }
 
 function relativeDate(date: Date | null): string {
@@ -46,10 +48,11 @@ export default function ApplicationTable({
   onDelete,
   onSelectApp,
   selectedAppId,
+  filterStatus,
+  onFilterChange,
 }: Props) {
   const [sortField, setSortField] = useState<SortField>("appliedAt")
   const [sortDir, setSortDir] = useState<SortDir>("desc")
-  const [filterStatus, setFilterStatus] = useState<applicationStatus | "ALL">("ALL")
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [statusOverrides, setStatusOverrides] = useState<Record<string, applicationStatus>>({})
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; appId: string } | null>(null)
@@ -140,25 +143,7 @@ export default function ApplicationTable({
   const anySelected = selected.size > 0
 
   return (
-    <div className="rounded-lg border border-border bg-card overflow-hidden">
-      {/* Filter pills */}
-      <div className="flex items-center gap-1.5 px-4 py-2.5 border-b border-border">
-        <FilterPill
-          active={filterStatus === "ALL"}
-          onClick={() => setFilterStatus("ALL")}
-          label="All"
-        />
-        {STATUS_DISPLAY_ORDER.map((s) => (
-          <FilterPill
-            key={s}
-            active={filterStatus === s}
-            onClick={() => setFilterStatus(s)}
-            label={STATUS_CONFIG[s].label}
-            color={STATUS_COLORS[s]}
-          />
-        ))}
-      </div>
-
+    <div className="bg-card overflow-hidden">
       {/* Review items */}
       {reviewItems.length > 0 && (
         <div className="border-b border-border bg-violet-50/50 dark:bg-violet-950/20">
@@ -234,7 +219,7 @@ export default function ApplicationTable({
                         No applications match this filter.{" "}
                         <button
                           className="underline underline-offset-2 hover:text-foreground"
-                          onClick={() => setFilterStatus("ALL")}
+                          onClick={() => onFilterChange("ALL")}
                         >
                           Clear filter
                         </button>
@@ -325,18 +310,3 @@ export default function ApplicationTable({
   )
 }
 
-function FilterPill({ active, onClick, label, color }: { active: boolean; onClick: () => void; label: string; color?: string }) {
-  return (
-    <button
-      onClick={onClick}
-      className={`flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium transition-colors ${
-        active
-          ? "bg-foreground text-background"
-          : "bg-muted/60 text-muted-foreground hover:bg-muted"
-      }`}
-    >
-      {color && <span className="size-2 rounded-full" style={{ backgroundColor: color }} />}
-      {label}
-    </button>
-  )
-}

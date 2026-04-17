@@ -225,6 +225,16 @@ describe("fetchEmailsSince", () => {
     expect(mockMessagesGet).not.toHaveBeenCalled()
   })
 
+  it("restricts query to inbox only", async () => {
+    mockMessagesList.mockResolvedValue({ data: { messages: [] } })
+
+    const { fetchEmailsSince } = await import("@/server/services/gmail.service")
+    await fetchEmailsSince(mockOAuth2Instance as any)
+
+    const query: string = mockMessagesList.mock.calls[0][0].q
+    expect(query).toMatch(/^in:inbox\b/)
+  })
+
   it("includes subject keywords and ATS sender domains in query", async () => {
     mockMessagesList.mockResolvedValue({ data: { messages: [] } })
 
@@ -245,6 +255,45 @@ describe("fetchEmailsSince", () => {
     const query: string = mockMessagesList.mock.calls[0][0].q
     expect(query).toContain("application")
     expect(query).toContain("smartrecruiters.com")
+  })
+
+  it("includes new subject keywords for common HR email patterns", async () => {
+    mockMessagesList.mockResolvedValue({ data: { messages: [] } })
+
+    const { fetchEmailsSince } = await import("@/server/services/gmail.service")
+    await fetchEmailsSince(mockOAuth2Instance as any)
+
+    const query: string = mockMessagesList.mock.calls[0][0].q
+    expect(query).toContain('"following up"')
+    expect(query).toContain("candidate")
+    expect(query).toContain("unfortunately")
+    expect(query).toContain("talent")
+    expect(query).toContain("career")
+    expect(query).toContain("recruitment")
+  })
+
+  it("includes body-level phrases for high-signal job content", async () => {
+    mockMessagesList.mockResolvedValue({ data: { messages: [] } })
+
+    const { fetchEmailsSince } = await import("@/server/services/gmail.service")
+    await fetchEmailsSince(mockOAuth2Instance as any)
+
+    const query: string = mockMessagesList.mock.calls[0][0].q
+    expect(query).toContain('"we regret to inform"')
+    expect(query).toContain('"not moving forward"')
+    expect(query).toContain('"thank you for applying"')
+  })
+
+  it("includes newly added ATS domains", async () => {
+    mockMessagesList.mockResolvedValue({ data: { messages: [] } })
+
+    const { fetchEmailsSince } = await import("@/server/services/gmail.service")
+    await fetchEmailsSince(mockOAuth2Instance as any)
+
+    const query: string = mockMessagesList.mock.calls[0][0].q
+    expect(query).toContain("wellfound.com")
+    expect(query).toContain("indeed.com")
+    expect(query).toContain("ziprecruiter.com")
   })
 
   it("calls messagesGet with format: metadata and metadataHeaders", async () => {
@@ -446,5 +495,12 @@ describe("ATS_DOMAINS export", () => {
     expect(ATS_DOMAINS).toBeInstanceOf(Set)
     expect(ATS_DOMAINS.has("greenhouse.io")).toBe(true)
     expect(ATS_DOMAINS.has("lever.co")).toBe(true)
+  })
+
+  it("ATS_DOMAINS contains all domains used in the Gmail query", async () => {
+    const { ATS_DOMAINS, ATS_QUERY_DOMAINS } = await import("@/server/services/gmail.service")
+    for (const domain of ATS_QUERY_DOMAINS) {
+      expect(ATS_DOMAINS.has(domain)).toBe(true)
+    }
   })
 })

@@ -151,8 +151,8 @@ export async function classifyPipeline(
     }
   }
 
-  // Step 4: Sonnet classification
-  stats.sonnetCallCount = sonnetInputs.length
+  // Step 4: Sonnet classification (batched — 10 per API call, all batches in parallel)
+  stats.sonnetCallCount = Math.ceil(sonnetInputs.length / 10)
   if (sonnetInputs.length === 0) {
     return { results: needsReviewFromFetch, stats }
   }

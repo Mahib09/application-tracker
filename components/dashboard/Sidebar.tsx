@@ -5,25 +5,18 @@ import { type Application, type StatusChangeRecord } from "@/types/application"
 import { STATUS_CONFIG, STATUS_COLORS, STATUS_DISPLAY_ORDER } from "@/lib/constants"
 import InlineEdit from "@/components/dashboard/InlineEdit"
 import SidebarTimeline from "@/components/dashboard/SidebarTimeline"
-import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { motion, AnimatePresence } from "motion/react"
+import { motion } from "motion/react"
 import { useReducedMotion } from "@/lib/hooks/useReducedMotion"
 import { useMediaQuery } from "@/lib/hooks/useMediaQuery"
-import { ChevronUp, ChevronDown, X, Trash2, ExternalLink } from "lucide-react"
+import { ExternalLink } from "lucide-react"
 
 interface Props {
   app: Application
   onUpdate: (id: string, patch: Record<string, unknown>) => Promise<void>
-  onDelete: (id: string) => void | Promise<void>
-  onClose: () => void
-  onPrev: () => void
-  onNext: () => void
-  hasPrev: boolean
-  hasNext: boolean
 }
 
-export default function Sidebar({ app, onUpdate, onDelete, onClose, onPrev, onNext, hasPrev, hasNext }: Props) {
+export default function Sidebar({ app, onUpdate }: Props) {
   const [statusHistory, setStatusHistory] = useState<StatusChangeRecord[]>([])
   const [statusDropdown, setStatusDropdown] = useState(false)
   const reduced = useReducedMotion()
@@ -49,7 +42,6 @@ export default function Sidebar({ app, onUpdate, onDelete, onClose, onPrev, onNe
   }
 
   return (
-    <AnimatePresence>
       <motion.aside
         key="sidebar"
         initial={initial}
@@ -59,35 +51,9 @@ export default function Sidebar({ app, onUpdate, onDelete, onClose, onPrev, onNe
         className={
           isMobile
             ? "fixed inset-x-0 bottom-0 z-40 max-h-[85vh] rounded-t-2xl border-t border-border bg-card overflow-y-auto shadow-2xl"
-            : "w-full h-full border-l border-border bg-card overflow-y-auto"
+            : "w-2/5 shrink-0 bg-card overflow-y-auto"
         }
       >
-        {/* Header */}
-        <div className="sticky top-0 z-10 flex items-center justify-between border-b border-border bg-card px-4 py-2.5">
-          <div className="flex items-center gap-1">
-            <Button variant="ghost" size="icon-xs" onClick={onPrev} disabled={!hasPrev} aria-label="Previous">
-              <ChevronUp className="size-3.5" />
-            </Button>
-            <Button variant="ghost" size="icon-xs" onClick={onNext} disabled={!hasNext} aria-label="Next">
-              <ChevronDown className="size-3.5" />
-            </Button>
-          </div>
-          <div className="flex items-center gap-1">
-            <Button
-              variant="ghost"
-              size="icon-xs"
-              aria-label="Delete"
-              className="text-muted-foreground hover:text-destructive"
-              onClick={() => onDelete(app.id)}
-            >
-              <Trash2 className="size-3.5" />
-            </Button>
-            <Button variant="ghost" size="icon-xs" onClick={onClose} aria-label="Close">
-              <X className="size-3.5" />
-            </Button>
-          </div>
-        </div>
-
         {/* Body */}
         <div className="px-4 py-4 space-y-4">
           {/* Status */}
@@ -216,12 +182,11 @@ export default function Sidebar({ app, onUpdate, onDelete, onClose, onPrev, onNe
           {/* Timeline */}
           {statusHistory.length > 0 && (
             <div className="pt-2 border-t border-border">
-              <label className="text-xs font-medium text-muted-foreground mb-3 block">Status History</label>
+              <label className="text-xs font-medium text-muted-foreground mb-3 block">Timeline</label>
               <SidebarTimeline history={statusHistory} />
             </div>
           )}
         </div>
       </motion.aside>
-    </AnimatePresence>
   )
 }

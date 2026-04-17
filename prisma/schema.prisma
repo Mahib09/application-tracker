@@ -60,6 +60,7 @@ model StatusChange {
   fromStatus    applicationStatus
   toStatus      applicationStatus
   trigger       changeTrigger     @default(MANUAL)
+  eventDate     DateTime?
   createdAt     DateTime          @default(now())
 
   @@index([applicationId, createdAt])
@@ -116,6 +117,7 @@ enum applicationSource {
 enum lastSyncStatus {
   SUCCESS
   FAIL
+  IN_PROGRESS
 }
 
 enum changeTrigger {

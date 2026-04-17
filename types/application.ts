@@ -21,5 +21,6 @@ export interface StatusChangeRecord {
   fromStatus: applicationStatus
   toStatus: applicationStatus
   trigger: string
+  eventDate: Date | null
   createdAt: Date
 }

@@ -623,3 +623,114 @@ describe("syncApplications — GHOSTED sweep", () => {
     expect(statusIn).not.toContain("REJECTED")
   })
 })
+
+// ─── Concurrent sync lock ───────────────────────────────────────────────────
+
+describe("syncApplications — IN_PROGRESS lock", () => {
+  it("returns skipped when status is IN_PROGRESS and not stale", async () => {
+    const recentUpdate = new Date(NOW.getTime() - 60_000) // 1 min ago
+    vi.mocked(prisma.syncState.findUnique).mockResolvedValue({
+      userId: "user-1",
+      lastSyncedAt: new Date(NOW.getTime() - 20 * 60 * 1000), // past cooldown
+      lastSyncStatus: "IN_PROGRESS",
+      lastSyncError: null,
+      updatedAt: recentUpdate,
+    } as any)
+
+    const { syncApplications } = await import("@/server/services/sync.service")
+    const result = await syncApplications("user-1")
+
+    expect(result.skipped).toBe(true)
+    expect(getGmailClient).not.toHaveBeenCalled()
+  })
+
+  it("allows sync when IN_PROGRESS is stale (>5 min)", async () => {
+    const staleUpdate = new Date(NOW.getTime() - 6 * 60 * 1000) // 6 min ago
+    vi.mocked(prisma.syncState.findUnique).mockResolvedValue({
+      userId: "user-1",
+      lastSyncedAt: new Date(NOW.getTime() - 20 * 60 * 1000),
+      lastSyncStatus: "IN_PROGRESS",
+      lastSyncError: null,
+      updatedAt: staleUpdate,
+    } as any)
+
+    const { syncApplications } = await import("@/server/services/sync.service")
+    await syncApplications("user-1")
+
+    expect(getGmailClient).toHaveBeenCalledOnce()
+  })
+
+  it("sets IN_PROGRESS before starting sync work", async () => {
+    vi.mocked(prisma.syncState.findUnique).mockResolvedValue(null)
+
+    const { syncApplications } = await import("@/server/services/sync.service")
+    await syncApplications("user-1")
+
+    // First upsert call should be the IN_PROGRESS lock
+    const firstUpsert = vi.mocked(prisma.syncState.upsert).mock.calls[0]
+    expect(firstUpsert[0]).toMatchObject({
+      update: { lastSyncStatus: "IN_PROGRESS" },
+    })
+  })
+})
+
+// ─── StatusChange eventDate + initial creation ──────────────────────────────
+
+describe("syncApplications — eventDate on StatusChange", () => {
+  beforeEach(() => {
+    vi.mocked(prisma.syncState.findUnique).mockResolvedValue(null)
+  })
+
+  it("creates initial StatusChange with eventDate when application is created", async () => {
+    const emailDate = new Date("2025-03-10")
+    vi.mocked(classifyPipeline).mockResolvedValue({
+      results: [{ messageId: "m1", company: "Acme", roleTitle: "Engineer", status: "APPLIED", date: emailDate, location: null }],
+      stats: ZERO_STATS,
+    })
+    vi.mocked(prisma.application.findFirst).mockResolvedValue(null)
+    vi.mocked(prisma.application.findMany).mockResolvedValue([])
+    vi.mocked(prisma.application.create).mockResolvedValue({ id: "app-new" } as any)
+
+    const { syncApplications } = await import("@/server/services/sync.service")
+    await syncApplications("user-1")
+
+    expect(prisma.statusChange.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          applicationId: "app-new",
+          fromStatus: "APPLIED",
+          toStatus: "APPLIED",
+          trigger: "SYNC",
+          eventDate: emailDate,
+        }),
+      })
+    )
+  })
+
+  it("includes eventDate on StatusChange when status updates", async () => {
+    const emailDate = new Date("2025-03-15")
+    const olderDate = new Date(NOW.getTime() - 5 * 24 * 60 * 60 * 1000)
+    vi.mocked(classifyPipeline).mockResolvedValue({
+      results: [{ messageId: "m1", company: "Acme", roleTitle: "Engineer", status: "INTERVIEW", date: emailDate, location: null }],
+      stats: ZERO_STATS,
+    })
+    vi.mocked(prisma.application.findFirst).mockResolvedValue({
+      id: "app-1", status: "APPLIED", appliedAt: olderDate, roleTitle: "Engineer", location: null,
+    } as any)
+    vi.mocked(prisma.application.update).mockResolvedValue({} as any)
+
+    const { syncApplications } = await import("@/server/services/sync.service")
+    await syncApplications("user-1")
+
+    expect(prisma.statusChange.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          applicationId: "app-1",
+          fromStatus: "APPLIED",
+          toStatus: "INTERVIEW",
+          eventDate: emailDate,
+        }),
+      })
+    )
+  })
+})

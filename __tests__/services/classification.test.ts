@@ -137,7 +137,7 @@ describe("classifyPipeline", () => {
     expect(mockSonnetClassify).not.toHaveBeenCalled()
   })
 
-  it("counts sonnetCallCount equal to number of emails sent to Sonnet", async () => {
+  it("counts sonnetCallCount as number of batches (ceil(emails/10))", async () => {
     mockHaikuTriage.mockResolvedValue([
       { messageId: "msg-1", result: "YES" },
       { messageId: "msg-2", result: "YES" },
@@ -148,7 +148,8 @@ describe("classifyPipeline", () => {
     ])
     const { classifyPipeline } = await import("@/server/services/classification.service")
     const { stats } = await classifyPipeline([makeEmail("msg-1"), makeEmail("msg-2")], {} as any)
-    expect(stats.sonnetCallCount).toBe(2)
+    // 2 emails → 1 batch (ceil(2/10) = 1)
+    expect(stats.sonnetCallCount).toBe(1)
   })
 })
 

@@ -14,8 +14,8 @@ function senderDomain(from: string): string {
 }
 
 export function isDeterministicallyFiltered(email: EmailRaw): boolean {
-  // Rule 1: marketing unsubscribe signal (ATS emails with unsubscribe headers pass through)
-  if (email.listUnsubscribe !== null && !email.isATS) return true
+  // Rule 1 removed: List-Unsubscribe header is unreliable — legitimate HR emails
+  // (noreply@company.com) include it for CAN-SPAM compliance. Haiku triage handles this.
   // Rule 2: sender is a social/marketing platform
   const domain = senderDomain(email.from)
   if (domain && BLOCKLISTED_DOMAINS.has(domain)) return true

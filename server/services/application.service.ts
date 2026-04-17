@@ -163,6 +163,6 @@ export async function deleteApplication(
 export async function getStatusHistory(applicationId: string) {
   return prisma.statusChange.findMany({
     where: { applicationId },
-    orderBy: { createdAt: "desc" },
+    orderBy: { createdAt: "asc" },
   });
 }

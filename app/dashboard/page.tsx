@@ -49,10 +49,8 @@ export default async function DashboardPage() {
 
   if (isFirstTimeUser) {
     return (
-      <DashboardShell lastSyncedAt={null} cooldownMs={0}>
-        <div className="py-8">
-          <OnboardingEmptyState />
-        </div>
+      <DashboardShell lastSyncedAt={null} cooldownMs={0} hideToolbar>
+        <OnboardingEmptyState />
       </DashboardShell>
     )
   }

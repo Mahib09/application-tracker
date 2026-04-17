@@ -7,12 +7,13 @@ import { KANBAN_COLUMN_ORDER } from "@/lib/constants"
 import ApplicationTable from "@/components/dashboard/ApplicationTable"
 import KanbanBoard from "@/components/dashboard/KanbanBoard"
 import Sidebar from "@/components/dashboard/Sidebar"
+import UnifiedHeader from "@/components/dashboard/UnifiedHeader"
 import CommandPalette from "@/components/dashboard/CommandPalette"
 import KeyboardCheatsheet from "@/components/dashboard/KeyboardCheatsheet"
-import WeeklySummary from "@/components/dashboard/WeeklySummary"
 import { useCommandPalette } from "@/components/dashboard/CommandPaletteProvider"
 import { useKeyboardShortcuts } from "@/lib/hooks/useKeyboardShortcuts"
 import { useUndoAction } from "@/lib/hooks/useUndoAction"
+import { AnimatePresence } from "motion/react"
 import { toast, undoToast } from "@/lib/toast"
 import { STATUS_CONFIG } from "@/lib/constants"
 
@@ -36,6 +37,7 @@ export default function DashboardContent({
   const searchParams = useSearchParams()
   const view: "table" | "kanban" = searchParams.get("view") === "kanban" ? "kanban" : "table"
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [filterStatus, setFilterStatus] = useState<applicationStatus | "ALL">("ALL")
   const [cheatsheetOpen, setCheatsheetOpen] = useState(false)
   const [hiddenIds, setHiddenIds] = useState<Set<string>>(new Set())
   const undo = useUndoAction()
@@ -214,59 +216,69 @@ export default function DashboardContent({
   useKeyboardShortcuts(shortcuts)
 
   return (
-    <div className="py-4">
-    <div className="mb-4">
-      <WeeklySummary applications={visibleApplications} />
-    </div>
-    <div className="flex flex-col md:flex-row gap-4">
-      <div className={selectedApp ? "w-full md:w-3/5 transition-[width] duration-200" : "w-full"}>
-        {view === "kanban" ? (
-          <KanbanBoard
-            applications={visibleApplications}
-            selectedId={selectedId}
-            onSelect={setSelectedId}
-            onStatusChange={onStatusChange}
-            onApproveReview={handleApprove}
-            onDismissReview={handleDismiss}
-          />
-        ) : (
-          <ApplicationTable
-            applications={visibleApplications}
-            onStatusChange={onStatusChange}
-            onNotesSave={async () => {}}
-            onApproveReview={handleApprove}
-            onDismiss={handleDismiss}
-            onDelete={handleDelete}
-            onSelectApp={setSelectedId}
-            selectedAppId={selectedId}
-          />
-        )}
-      </div>
-
-      {selectedApp && (
-        <div className="w-full md:w-2/5 min-h-[60vh]">
-          <Sidebar
-            key={selectedApp.id}
-            app={selectedApp}
-            onUpdate={handleUpdate}
-            onDelete={handleDelete}
-            onClose={() => setSelectedId(null)}
-            onPrev={handlePrev}
-            onNext={handleNext}
-            hasPrev={hasPrev}
-            hasNext={hasNext}
-          />
-        </div>
-      )}
-
-      <CommandPalette
-        applications={nonReview}
-        selectedId={selectedId}
-        onSelectApp={setSelectedId}
-        onStatusChange={onStatusChange}
+    <>
+    <div className="flex flex-col h-full rounded-lg border border-border overflow-hidden">
+      {/* Unified header spanning both panels */}
+      <UnifiedHeader
+        filterStatus={filterStatus}
+        onFilterChange={setFilterStatus}
+        sidebarOpen={!!selectedApp}
+        onPrev={handlePrev}
+        onNext={handleNext}
+        hasPrev={hasPrev}
+        hasNext={hasNext}
+        onDelete={selectedApp ? () => handleDelete(selectedApp.id) : undefined}
+        onClose={() => setSelectedId(null)}
       />
-      <KeyboardCheatsheet open={cheatsheetOpen} onClose={() => setCheatsheetOpen(false)} />
+
+      {/* Content area: table + sidebar */}
+      <div className="flex flex-1 min-h-0">
+        {/* Table/Kanban panel */}
+        <div className={`flex-1 overflow-y-auto ${selectedApp ? "border-r border-border" : ""}`}>
+          {view === "kanban" ? (
+            <KanbanBoard
+              applications={visibleApplications}
+              selectedId={selectedId}
+              onSelect={setSelectedId}
+              onStatusChange={onStatusChange}
+              onApproveReview={handleApprove}
+              onDismissReview={handleDismiss}
+            />
+          ) : (
+            <ApplicationTable
+              applications={visibleApplications}
+              onStatusChange={onStatusChange}
+              onNotesSave={async () => {}}
+              onApproveReview={handleApprove}
+              onDismiss={handleDismiss}
+              onDelete={handleDelete}
+              onSelectApp={setSelectedId}
+              selectedAppId={selectedId}
+              filterStatus={filterStatus}
+              onFilterChange={setFilterStatus}
+            />
+          )}
+        </div>
+
+        {/* Sidebar panel */}
+        <AnimatePresence>
+          {selectedApp && (
+            <Sidebar
+              app={selectedApp}
+              onUpdate={handleUpdate}
+            />
+          )}
+        </AnimatePresence>
+      </div>
     </div>
-    </div>
+
+    <CommandPalette
+      applications={nonReview}
+      selectedId={selectedId}
+      onSelectApp={setSelectedId}
+      onStatusChange={onStatusChange}
+    />
+    <KeyboardCheatsheet open={cheatsheetOpen} onClose={() => setCheatsheetOpen(false)} />
+    </>
   )
 }

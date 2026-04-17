@@ -23,6 +23,7 @@ export interface SyncResult {
 
 const COOLDOWN_MS = 15 * 60 * 1000; // 15 minutes
 const GHOSTED_AFTER_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
+const STALE_LOCK_MS = 5 * 60 * 1000; // 5 minutes — IN_PROGRESS older than this is considered stale
 
 // ─── Upsert helper ───────────────────────────────────────────────────────────
 
@@ -187,6 +188,7 @@ async function upsertResult(
           fromStatus: existing.status,
           toStatus: newStatus,
           trigger: "SYNC" as any,
+          eventDate: result.date,
         },
       });
     }
@@ -195,7 +197,7 @@ async function upsertResult(
   }
 
   // ── No match: create new record ───────────────────────────────────────────────
-  await prisma.application.create({
+  const created = await prisma.application.create({
     data: {
       userId,
       company: result.company,
@@ -206,6 +208,18 @@ async function upsertResult(
       location: result.location ?? null,
     },
   });
+
+  // Initial timeline event — records when the application was first seen
+  await prisma.statusChange.create({
+    data: {
+      applicationId: created.id,
+      fromStatus: result.status as any,
+      toStatus: result.status as any,
+      trigger: "SYNC" as any,
+      eventDate: result.date,
+    },
+  });
+
   return "created";
 }
 
@@ -266,14 +280,37 @@ export async function syncApplications(userId: string): Promise<SyncResult> {
     }
   }
 
+  // 2b. Concurrent sync check — already IN_PROGRESS and not stale
+  if (
+    syncState?.lastSyncStatus === "IN_PROGRESS" &&
+    syncState.updatedAt &&
+    Date.now() - syncState.updatedAt.getTime() < STALE_LOCK_MS
+  ) {
+    return {
+      skipped: true,
+      cooldownMs: 0,
+      synced: 0,
+      updated: 0,
+      ghosted: 0,
+      lastSyncedAt: lastSyncedAt ?? new Date(),
+    };
+  }
+
+  // 3. Acquire lock — atomically set IN_PROGRESS
+  await prisma.syncState.upsert({
+    where: { userId },
+    update: { lastSyncStatus: "IN_PROGRESS" },
+    create: { userId, lastSyncStatus: "IN_PROGRESS" },
+  });
+
   const now = new Date();
 
   try {
-    // 3. Refresh token once at sync start
+    // 4. Refresh token once at sync start
     const gmailClient = await getGmailClient(userId);
 
-    // 4. Fetch emails — never look back more than 3 months
-    const THREE_MONTHS_MS = 365 * 24 * 60 * 60 * 1000;
+    // 5. Fetch emails — never look back more than 3 months
+    const THREE_MONTHS_MS = 90 * 24 * 60 * 60 * 1000;
     const threeMonthsAgo = new Date(Date.now() - THREE_MONTHS_MS);
     const fetchSince =
       lastSyncedAt && lastSyncedAt > threeMonthsAgo
@@ -284,7 +321,7 @@ export async function syncApplications(userId: string): Promise<SyncResult> {
     let synced = 0;
     let updated = 0;
 
-    // 5. Classify — deterministic filter → Haiku triage → Sonnet extraction
+    // 6. Classify — deterministic filter → Haiku triage → Sonnet extraction
     const { results, stats } = await classifyPipeline(emails, gmailClient);
     for (const result of results) {
       const r = await upsertResult(userId, result);
@@ -292,7 +329,7 @@ export async function syncApplications(userId: string): Promise<SyncResult> {
       else if (r === "updated") updated++;
     }
 
-    // 6. GHOSTED sweep — runs after new emails processed
+    // 7. GHOSTED sweep — runs after new emails processed
     const ghostCandidates = await prisma.application.findMany({
       where: {
         userId,
@@ -317,6 +354,7 @@ export async function syncApplications(userId: string): Promise<SyncResult> {
           fromStatus: g.status,
           toStatus: "GHOSTED" as any,
           trigger: "AUTO_GHOST" as any,
+          eventDate: now,
         })),
       });
       ghosted = ghostCandidates.length;
@@ -325,7 +363,7 @@ export async function syncApplications(userId: string): Promise<SyncResult> {
       }
     }
 
-    // 7. Update SyncState to SUCCESS
+    // 8. Update SyncState to SUCCESS
     await prisma.syncState.upsert({
       where: { userId },
       update: {
