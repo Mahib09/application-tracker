@@ -47,7 +47,18 @@ export default function SyncButton({ lastSyncedAt, cooldownMs: initialCooldown, 
       } else {
         setLastSynced(new Date())
         setCooldownMs(15 * 60 * 1000)
-        toast.success(`Synced ${data.synced} new application${data.synced !== 1 ? "s" : ""}`)
+        const created = data.synced ?? 0
+        const updated = data.updated ?? 0
+        const s = (n: number) => (n !== 1 ? "s" : "")
+        if (created > 0 && updated > 0) {
+          toast.success(`Synced ${created} new, ${updated} updated`)
+        } else if (created > 0) {
+          toast.success(`Synced ${created} new application${s(created)}`)
+        } else if (updated > 0) {
+          toast.success(`Updated ${updated} application${s(updated)}`)
+        } else {
+          toast("No new updates")
+        }
         router.refresh()
         if (Array.isArray(data.ghostedRecords) && data.ghostedRecords.length > 0) {
           const records = data.ghostedRecords as { id: string; fromStatus: string }[]

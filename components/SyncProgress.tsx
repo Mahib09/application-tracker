@@ -66,9 +66,20 @@ export default function SyncProgress({ onComplete, onError }: Props) {
   // Smooth completion animation
   const completeSync = useCallback((data: { synced: number; updated: number }) => {
     setDone(true)
-    setResultText(
-      `Found ${data.synced} application${data.synced !== 1 ? "s" : ""}!`
-    )
+    const created = data.synced
+    const updated = data.updated
+    const s = (n: number) => (n !== 1 ? "s" : "")
+    let text: string
+    if (created > 0 && updated > 0) {
+      text = `Found ${created} new, ${updated} updated!`
+    } else if (created > 0) {
+      text = `Found ${created} application${s(created)}!`
+    } else if (updated > 0) {
+      text = `Updated ${updated} application${s(updated)}!`
+    } else {
+      text = "No new updates"
+    }
+    setResultText(text)
 
     const currentProgress = 90 * (1 - Math.exp(-(Date.now() - startTime.current) / 15000))
     if (currentProgress < 30) {

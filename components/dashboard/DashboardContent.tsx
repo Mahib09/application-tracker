@@ -96,11 +96,28 @@ export default function DashboardContent({
   const handleUpdate = useCallback(async (id: string, patch: Record<string, unknown>) => {
     try {
       await onUpdate(id, patch)
+      toast("Saved")
       router.refresh()
     } catch {
       toast.error("Failed to update")
     }
   }, [onUpdate, router])
+
+  const handleStatusChange = useCallback(
+    async (id: string, prev: applicationStatus, next: applicationStatus) => {
+      try {
+        await onStatusChange(id, prev, next)
+        router.refresh()
+        undoToast(`Status → ${STATUS_CONFIG[next].label}`, async () => {
+          await onStatusChange(id, next, prev)
+          router.refresh()
+        })
+      } catch {
+        toast.error("Failed to change status")
+      }
+    },
+    [onStatusChange, router],
+  )
 
   const handleDelete = useCallback((id: string) => {
     const app = applications.find((a) => a.id === id)
@@ -156,18 +173,7 @@ export default function DashboardContent({
       if (!selectedApp) return
       const next = KANBAN_COLUMN_ORDER[idx]
       if (!next || next === selectedApp.status) return
-      const prev = selectedApp.status
-      const appId = selectedApp.id
-      try {
-        await onStatusChange(appId, prev, next)
-        router.refresh()
-        undoToast(`Status → ${STATUS_CONFIG[next].label}`, async () => {
-          await onStatusChange(appId, next, prev)
-          router.refresh()
-        })
-      } catch {
-        toast.error("Failed to change status")
-      }
+      await handleStatusChange(selectedApp.id, selectedApp.status, next)
     }
     return {
       j: () => {
@@ -215,8 +221,7 @@ export default function DashboardContent({
     handleDelete,
     handleApprove,
     handleDismiss,
-    onStatusChange,
-    router,
+    handleStatusChange,
     paletteOpen,
     cheatsheetOpen,
     closePalette,
@@ -242,14 +247,14 @@ export default function DashboardContent({
               applications={visibleApplications}
               selectedId={selectedId}
               onSelect={setSelectedId}
-              onStatusChange={onStatusChange}
+              onStatusChange={handleStatusChange}
               onApproveReview={handleApprove}
               onDismissReview={handleDismiss}
             />
           ) : (
             <ApplicationTable
               applications={visibleApplications}
-              onStatusChange={onStatusChange}
+              onStatusChange={handleStatusChange}
               onNotesSave={async () => {}}
               onApproveReview={handleApprove}
               onDismiss={handleDismiss}
@@ -287,7 +292,7 @@ export default function DashboardContent({
       applications={nonReview}
       selectedId={selectedId}
       onSelectApp={setSelectedId}
-      onStatusChange={onStatusChange}
+      onStatusChange={handleStatusChange}
     />
     <KeyboardCheatsheet open={cheatsheetOpen} onClose={() => setCheatsheetOpen(false)} />
     </>
