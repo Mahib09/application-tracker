@@ -8,6 +8,7 @@ import ApplicationTable from "@/components/dashboard/ApplicationTable"
 import KanbanBoard from "@/components/dashboard/KanbanBoard"
 import Sidebar from "@/components/dashboard/Sidebar"
 import UnifiedHeader from "@/components/dashboard/UnifiedHeader"
+import TableFooter from "@/components/dashboard/TableFooter"
 import CommandPalette from "@/components/dashboard/CommandPalette"
 import KeyboardCheatsheet from "@/components/dashboard/KeyboardCheatsheet"
 import { useCommandPalette } from "@/components/dashboard/CommandPaletteProvider"
@@ -66,6 +67,14 @@ export default function DashboardContent({
     () => visibleApplications.filter((a) => a.status === applicationStatus.NEEDS_REVIEW),
     [visibleApplications],
   )
+
+  // Status counts for shared footer
+  const counts = useMemo(() => {
+    const c = {} as Record<applicationStatus, number>
+    for (const s of Object.values(applicationStatus)) c[s] = 0
+    for (const a of visibleApplications) c[a.status]++
+    return c
+  }, [visibleApplications])
 
   const selectedApp = useMemo(
     () => applications.find((a) => a.id === selectedId) ?? null,
@@ -222,13 +231,6 @@ export default function DashboardContent({
       <UnifiedHeader
         filterStatus={filterStatus}
         onFilterChange={setFilterStatus}
-        sidebarOpen={!!selectedApp}
-        onPrev={handlePrev}
-        onNext={handleNext}
-        hasPrev={hasPrev}
-        hasNext={hasNext}
-        onDelete={selectedApp ? () => handleDelete(selectedApp.id) : undefined}
-        onClose={() => setSelectedId(null)}
       />
 
       {/* Content area: table + sidebar */}
@@ -266,10 +268,19 @@ export default function DashboardContent({
             <Sidebar
               app={selectedApp}
               onUpdate={handleUpdate}
+              onPrev={handlePrev}
+              onNext={handleNext}
+              hasPrev={hasPrev}
+              hasNext={hasNext}
+              onDelete={() => handleDelete(selectedApp.id)}
+              onClose={() => setSelectedId(null)}
             />
           )}
         </AnimatePresence>
       </div>
+
+      {/* Shared footer spanning both panels */}
+      <TableFooter counts={counts} total={visibleApplications.length} />
     </div>
 
     <CommandPalette

@@ -3,7 +3,6 @@ import { useState, useCallback, useMemo } from "react"
 import { applicationStatus } from "@/app/generated/prisma/enums"
 import { STATUS_COLORS, STATUS_CONFIG } from "@/lib/constants"
 import { type Application } from "@/types/application"
-import TableFooter from "@/components/dashboard/TableFooter"
 import BulkActionBar from "@/components/dashboard/BulkActionBar"
 import RowContextMenu from "@/components/dashboard/RowContextMenu"
 import { Button } from "@/components/ui/button"
@@ -124,14 +123,6 @@ export default function ApplicationTable({
     try { await onStatusChange(id, prev, next) }
     catch { setStatusOverrides((s) => ({ ...s, [id]: prev })) }
   }, [applications, onStatusChange, statusOverrides])
-
-  // Counts for footer
-  const counts = useMemo(() => {
-    const c = {} as Record<applicationStatus, number>
-    for (const s of Object.values(applicationStatus)) c[s] = 0
-    for (const a of applications) c[effectiveStatus(a)]++
-    return c
-  }, [applications, statusOverrides])
 
   const SortIcon = ({ field }: { field: SortField }) => {
     if (sortField !== field) return null
@@ -283,9 +274,6 @@ export default function ApplicationTable({
           </tbody>
         </table>
       </div>
-
-      {/* Footer */}
-      <TableFooter counts={counts} total={applications.length} />
 
       {/* Bulk action bar */}
       <BulkActionBar

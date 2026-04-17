@@ -9,7 +9,7 @@ interface Props {
 
 export default function TableFooter({ counts, total }: Props) {
   return (
-    <div className="flex items-center gap-4 px-4 py-2.5 border-t border-border text-xs text-muted-foreground">
+    <div className="flex items-center justify-end gap-4 px-4 py-2.5 border-t border-border text-xs text-muted-foreground bg-card">
       <span className="tabular-nums font-medium text-foreground">{total} total</span>
       {STATUS_DISPLAY_ORDER.map((status) => (
         <span key={status} className="flex items-center gap-1.5 tabular-nums">
