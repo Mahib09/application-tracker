@@ -1,5 +1,5 @@
 "use client"
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 import { Command } from "cmdk"
 import { applicationStatus } from "@/app/generated/prisma/enums"
 import { type Application } from "@/types/application"
@@ -7,7 +7,7 @@ import { STATUS_DISPLAY_ORDER, STATUS_CONFIG, STATUS_COLORS } from "@/lib/consta
 import { useCommandPalette } from "@/components/dashboard/CommandPaletteProvider"
 import { useTheme } from "next-themes"
 import { useRouter, usePathname, useSearchParams } from "next/navigation"
-import { LayoutList, LayoutGrid, Sun, Moon, Search, Plus } from "lucide-react"
+import { LayoutList, LayoutGrid, Sun, Moon, Search, Plus, Inbox, Bell } from "lucide-react"
 
 
 interface Props {
@@ -29,7 +29,13 @@ export default function CommandPalette({
   const pathname = usePathname()
   const searchParams = useSearchParams()
 
+  const [now] = useState(() => Date.now())
   const selectedApp = applications.find((a) => a.id === selectedId) ?? null
+  const reviewCount = applications.filter((a) => a.status === "NEEDS_REVIEW").length
+  const followUpCount = applications.filter((a) => {
+    if (a.status !== "APPLIED" || !a.appliedAt) return false
+    return now - new Date(a.appliedAt).getTime() > 10 * 24 * 60 * 60 * 1000
+  }).length
 
   const setView = (view: "table" | "kanban") => {
     const params = new URLSearchParams(searchParams.toString())
@@ -114,6 +120,30 @@ export default function CommandPalette({
               >
                 <LayoutGrid className="size-4" /> Kanban view
               </Command.Item>
+              <Command.Item
+                onSelect={() => runAndClose(() => router.push("/dashboard/review"))}
+                className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm data-[selected=true]:bg-muted"
+              >
+                <Inbox className="size-4" />
+                Review queue
+                {reviewCount > 0 && (
+                  <span className="ml-auto rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:bg-amber-900/40 dark:text-amber-400">
+                    {reviewCount}
+                  </span>
+                )}
+              </Command.Item>
+              <Command.Item
+                onSelect={() => runAndClose(() => router.push("/dashboard/followups"))}
+                className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm data-[selected=true]:bg-muted"
+              >
+                <Bell className="size-4" />
+                Follow-ups
+                {followUpCount > 0 && (
+                  <span className="ml-auto rounded-full bg-blue-100 px-1.5 py-0.5 text-[10px] font-medium text-blue-700 dark:bg-blue-900/40 dark:text-blue-400">
+                    {followUpCount}
+                  </span>
+                )}
+              </Command.Item>
             </Command.Group>
 
             <Command.Group
@@ -165,6 +195,15 @@ export default function CommandPalette({
                     {STATUS_CONFIG[s].label}
                   </Command.Item>
                 ))}
+                {selectedApp.status === "APPLIED" && (
+                  <Command.Item
+                    value="draft-followup"
+                    onSelect={() => runAndClose(() => router.push(`/dashboard/followups?app=${selectedApp.id}`))}
+                    className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm data-[selected=true]:bg-muted"
+                  >
+                    <Bell className="size-4" /> Draft follow-up
+                  </Command.Item>
+                )}
               </Command.Group>
             )}
           </Command.List>

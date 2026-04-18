@@ -119,6 +119,7 @@ async function upsertResult(
   if (existing) {
     const existingPriority = STATUS_PRIORITY[existing.status] ?? 0;
     const newPriority = STATUS_PRIORITY[result.status] ?? 0;
+    const isManual = (existing as any).manuallyEdited === true;
 
     // Field enrichment: fill empty roleTitle and null location from incoming
     const enrichedRole =
@@ -171,6 +172,17 @@ async function upsertResult(
     if (!hasChanges) return "skipped";
 
     const newStatus = shouldUpdateStatus ? (result.status as any) : existing.status;
+
+    const interviewFields =
+      !isManual && shouldUpdateStatus && result.status === "INTERVIEW"
+        ? {
+            interviewDate: result.interviewDate ? new Date(result.interviewDate) : undefined,
+            interviewUrl: result.interviewUrl ?? undefined,
+            interviewer: result.interviewer ?? undefined,
+            interviewProvider: result.interviewProvider ?? undefined,
+          }
+        : {};
+
     await prisma.application.update({
       where: { id: existing.id },
       data: {
@@ -178,6 +190,7 @@ async function upsertResult(
         appliedAt: shouldUpdateDate ? result.date : existing.appliedAt,
         roleTitle: enrichedRole,
         location: enrichedLocation,
+        ...interviewFields,
       },
     });
 
@@ -197,6 +210,16 @@ async function upsertResult(
   }
 
   // ── No match: create new record ───────────────────────────────────────────────
+  const interviewFieldsOnCreate =
+    result.status === "INTERVIEW"
+      ? {
+          interviewDate: result.interviewDate ? new Date(result.interviewDate) : undefined,
+          interviewUrl: result.interviewUrl ?? undefined,
+          interviewer: result.interviewer ?? undefined,
+          interviewProvider: result.interviewProvider ?? undefined,
+        }
+      : {};
+
   const created = await prisma.application.create({
     data: {
       userId,
@@ -206,6 +229,14 @@ async function upsertResult(
       source: "GMAIL" as any,
       appliedAt: result.date,
       location: result.location ?? null,
+      confidence: result.confidence ?? null,
+      sourceEmailId: result.messageId,
+      sourceEmailSubject: result.sourceEmailSubject ?? null,
+      sourceEmailSnippet: result.sourceEmailSnippet ?? null,
+      sourceEmailReceivedAt: result.sourceEmailReceivedAt ?? null,
+      recruiterName: result.recruiterName ?? null,
+      recruiterEmail: result.recruiterEmail ?? null,
+      ...interviewFieldsOnCreate,
     },
   });
 

@@ -30,6 +30,12 @@ const EXTRACT_TOOL: Anthropic.Tool = {
             status: { type: "string", enum: ["APPLIED", "INTERVIEW", "OFFER", "REJECTED"] },
             location: { type: ["string", "null"], description: "City/state, Remote, Hybrid, or null" },
             confidence: { type: "number", description: "0.0-1.0 confidence across all fields" },
+            interviewDate: { type: ["string", "null"], description: "ISO 8601 date-time of interview if status is INTERVIEW, else null" },
+            interviewUrl: { type: ["string", "null"], description: "Video call URL (Zoom, Google Meet, Teams) if present, else null" },
+            interviewer: { type: ["string", "null"], description: "Interviewer name if mentioned, else null" },
+            interviewProvider: { type: ["string", "null"], description: "ZOOM, GMEET, TEAMS, or OTHER based on interviewUrl, else null" },
+            recruiterName: { type: ["string", "null"], description: "Sender display name if the email is from a person (not an ATS bot), else null" },
+            recruiterEmail: { type: ["string", "null"], description: "Sender email address lowercased if the email is from a person, else null" },
           },
           required: ["messageId", "company", "roleTitle", "status", "location", "confidence"],
         },
@@ -104,6 +110,12 @@ async function classifyBatch(
       status: string
       location: string | null
       confidence: number
+      interviewDate?: string | null
+      interviewUrl?: string | null
+      interviewer?: string | null
+      interviewProvider?: string | null
+      recruiterName?: string | null
+      recruiterEmail?: string | null
     }> }
 
     if (!Array.isArray(input.results)) return fallback()
@@ -135,6 +147,12 @@ async function classifyBatch(
           location: parsed.location ?? null,
           date: email.date,
           confidence: parsed.confidence,
+          interviewDate: parsed.interviewDate ?? null,
+          interviewUrl: parsed.interviewUrl ?? null,
+          interviewer: parsed.interviewer ?? null,
+          interviewProvider: parsed.interviewProvider ?? null,
+          recruiterName: parsed.recruiterName ?? null,
+          recruiterEmail: parsed.recruiterEmail ?? null,
         },
         { companyHint: email.companyHint }
       )

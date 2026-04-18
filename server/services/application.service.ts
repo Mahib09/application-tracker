@@ -4,6 +4,7 @@ import {
   applicationSource,
   changeTrigger,
 } from "@/app/generated/prisma/enums";
+import { fetchJobDescription } from "@/server/services/jd-snapshot.service";
 
 type CreateApplicationInput = {
   company: string;
@@ -51,6 +52,23 @@ export async function createApplication(
       notes: input.notes,
     },
   });
+
+  // Fire-and-forget: cache job description without blocking the response
+  if (input.jobUrl) {
+    fetchJobDescription(input.jobUrl)
+      .then((snapshot) => {
+        if (!snapshot) return;
+        return prisma.application.update({
+          where: { id: application.id },
+          data: {
+            jobDescriptionSnapshot: snapshot,
+            jobDescriptionFetchedAt: new Date(),
+          },
+        });
+      })
+      .catch(() => undefined);
+  }
+
   return application;
 }
 
@@ -158,6 +176,52 @@ export async function deleteApplication(
   });
 
   return { deleted: true };
+}
+
+type OverrideInput = {
+  status?: applicationStatus;
+  company?: string;
+  roleTitle?: string;
+};
+
+export async function overrideClassification(
+  userId: string,
+  applicationId: string,
+  input: OverrideInput,
+) {
+  const application = await prisma.application.findFirst({
+    where: { id: applicationId, userId },
+    select: { id: true, status: true },
+  });
+
+  if (!application) {
+    throw new Error("application not found");
+  }
+
+  const statusChanged = input.status && input.status !== application.status;
+
+  if (statusChanged) {
+    return prisma.$transaction(async (tx) => {
+      const updated = await tx.application.update({
+        where: { id: application.id },
+        data: { ...input, manuallyEdited: true },
+      });
+      await tx.statusChange.create({
+        data: {
+          applicationId: application.id,
+          fromStatus: application.status,
+          toStatus: input.status!,
+          trigger: changeTrigger.MANUAL,
+        },
+      });
+      return updated;
+    });
+  }
+
+  return prisma.application.update({
+    where: { id: application.id },
+    data: { ...input, manuallyEdited: true },
+  });
 }
 
 export async function getStatusHistory(applicationId: string) {

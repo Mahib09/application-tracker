@@ -674,6 +674,136 @@ describe("syncApplications — IN_PROGRESS lock", () => {
   })
 })
 
+// ─── Phase A: source email fields & interview fields ────────────────────────
+
+describe("syncApplications — source email fields", () => {
+  beforeEach(() => {
+    vi.mocked(prisma.syncState.findUnique).mockResolvedValue(null)
+  })
+
+  it("writes sourceEmailSubject, sourceEmailSnippet, confidence, sourceEmailId on create", async () => {
+    vi.mocked(classifyPipeline).mockResolvedValue({
+      results: [{
+        messageId: "m1", company: "Acme", roleTitle: "Engineer", status: "APPLIED",
+        date: NOW, location: null, confidence: 0.92,
+        sourceEmailSubject: "Your application to Acme",
+        sourceEmailSnippet: "Thank you for applying",
+        sourceEmailReceivedAt: NOW,
+      }],
+      stats: ZERO_STATS,
+    })
+    vi.mocked(prisma.application.findFirst).mockResolvedValue(null)
+    vi.mocked(prisma.application.create).mockResolvedValue({ id: "app-new" } as any)
+
+    const { syncApplications } = await import("@/server/services/sync.service")
+    await syncApplications("user-1")
+
+    expect(prisma.application.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          sourceEmailId: "m1",
+          sourceEmailSubject: "Your application to Acme",
+          sourceEmailSnippet: "Thank you for applying",
+          sourceEmailReceivedAt: NOW,
+          confidence: 0.92,
+        }),
+      })
+    )
+  })
+
+  it("writes interview fields on create when status is INTERVIEW", async () => {
+    const isoDate = "2025-04-10T15:00:00Z"
+    vi.mocked(classifyPipeline).mockResolvedValue({
+      results: [{
+        messageId: "m2", company: "Beta", roleTitle: "Dev", status: "INTERVIEW",
+        date: NOW, location: null, confidence: 0.95,
+        interviewDate: isoDate,
+        interviewUrl: "https://zoom.us/j/99999",
+        interviewer: "Bob",
+        interviewProvider: "ZOOM",
+      }],
+      stats: ZERO_STATS,
+    })
+    vi.mocked(prisma.application.findFirst).mockResolvedValue(null)
+    vi.mocked(prisma.application.create).mockResolvedValue({ id: "app-int" } as any)
+
+    const { syncApplications } = await import("@/server/services/sync.service")
+    await syncApplications("user-1")
+
+    expect(prisma.application.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          interviewDate: new Date(isoDate),
+          interviewUrl: "https://zoom.us/j/99999",
+          interviewer: "Bob",
+          interviewProvider: "ZOOM",
+        }),
+      })
+    )
+  })
+
+  it("does NOT overwrite source email fields when manuallyEdited is true", async () => {
+    const olderDate = new Date(NOW.getTime() - 5 * 24 * 60 * 60 * 1000)
+    vi.mocked(classifyPipeline).mockResolvedValue({
+      results: [{
+        messageId: "m3", company: "Acme", roleTitle: "Engineer", status: "INTERVIEW",
+        date: NOW, location: null, confidence: 0.88,
+        sourceEmailSubject: "New email subject",
+        sourceEmailSnippet: "New snippet",
+      }],
+      stats: ZERO_STATS,
+    })
+    vi.mocked(prisma.application.findFirst).mockResolvedValue({
+      id: "app-manual", company: "Acme", roleTitle: "Engineer",
+      status: "APPLIED", appliedAt: olderDate, location: null,
+      manuallyEdited: true,
+    } as any)
+    vi.mocked(prisma.application.update).mockResolvedValue({} as any)
+
+    const { syncApplications } = await import("@/server/services/sync.service")
+    await syncApplications("user-1")
+
+    expect(prisma.application.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.not.objectContaining({ sourceEmailSubject: expect.anything() }),
+      })
+    )
+  })
+})
+
+// ─── Phase B: recruiter fields written on create ─────────────────────────────
+
+describe("syncApplications — recruiter fields", () => {
+  beforeEach(() => {
+    vi.mocked(prisma.syncState.findUnique).mockResolvedValue(null)
+  })
+
+  it("writes recruiterName and recruiterEmail on create", async () => {
+    vi.mocked(classifyPipeline).mockResolvedValue({
+      results: [{
+        messageId: "m-rec", company: "Acme", roleTitle: "Engineer", status: "APPLIED",
+        date: NOW, location: null, confidence: 0.95,
+        recruiterName: "Sarah Lee", recruiterEmail: "sarah@acme.com",
+      }],
+      stats: ZERO_STATS,
+    })
+    vi.mocked(prisma.application.findFirst).mockResolvedValue(null)
+    vi.mocked(prisma.application.create).mockResolvedValue({ id: "app-rec" } as any)
+
+    const { syncApplications } = await import("@/server/services/sync.service")
+    await syncApplications("user-1")
+
+    expect(prisma.application.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          recruiterName: "Sarah Lee",
+          recruiterEmail: "sarah@acme.com",
+        }),
+      })
+    )
+  })
+})
+
 // ─── StatusChange eventDate + initial creation ──────────────────────────────
 
 describe("syncApplications — eventDate on StatusChange", () => {

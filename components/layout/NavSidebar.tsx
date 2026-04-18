@@ -6,12 +6,14 @@ import { motion, AnimatePresence } from "motion/react"
 import { useNavSidebar } from "@/components/layout/NavSidebarProvider"
 import { useMediaQuery } from "@/lib/hooks/useMediaQuery"
 import { useReducedMotion } from "@/lib/hooks/useReducedMotion"
-import { LayoutDashboard, BarChart3, LogOut } from "lucide-react"
+import { LayoutDashboard, BarChart3, Inbox, Bell, LogOut } from "lucide-react"
 import { useEffect } from "react"
 
 const NAV_ITEMS = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, exact: true },
   { href: "/dashboard/analytics", label: "Analytics", icon: BarChart3 },
+  { href: "/dashboard/review", label: "Review queue", icon: Inbox },
+  { href: "/dashboard/followups", label: "Follow-ups", icon: Bell },
 ]
 
 const spring = { type: "spring" as const, stiffness: 400, damping: 35 }

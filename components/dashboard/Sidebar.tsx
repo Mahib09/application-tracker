@@ -17,7 +17,7 @@ import { Button } from "@/components/ui/button";
 import { motion } from "motion/react";
 import { useReducedMotion } from "@/lib/hooks/useReducedMotion";
 import { useMediaQuery } from "@/lib/hooks/useMediaQuery";
-import { ExternalLink, ChevronUp, ChevronDown, Trash2, X } from "lucide-react";
+import { ExternalLink, ChevronUp, ChevronDown, Trash2, X, Mail, Calendar, User } from "lucide-react";
 
 interface Props {
   app: Application;
@@ -286,6 +286,140 @@ export default function Sidebar({
             <span className="text-sm tabular-nums text-foreground">
               {Math.round(app.confidence * 100)}%
             </span>
+          </div>
+        )}
+
+        {/* Source email */}
+        {app.sourceEmailSubject && (
+          <div className="pt-2 border-t border-border">
+            <div className="flex items-center gap-1.5 mb-2">
+              <Mail className="size-3.5 text-muted-foreground" />
+              <label className="text-xs font-medium text-muted-foreground">
+                Source email
+              </label>
+            </div>
+            <p className="text-sm font-medium text-foreground leading-snug">
+              {app.sourceEmailSubject}
+            </p>
+            {app.sourceEmailSnippet && (
+              <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">
+                {app.sourceEmailSnippet}
+              </p>
+            )}
+            <div className="flex items-center gap-2 mt-1.5">
+              {app.sourceEmailReceivedAt && (
+                <span className="text-xs text-muted-foreground">
+                  {new Date(app.sourceEmailReceivedAt).toLocaleDateString()}
+                </span>
+              )}
+              {app.sourceEmailId && (
+                <a
+                  href={`https://mail.google.com/mail/u/0/#inbox/${app.sourceEmailId}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-0.5 text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                >
+                  View in Gmail
+                  <ExternalLink className="size-2.5" />
+                </a>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Interview brief */}
+        {app.status === "INTERVIEW" && (app.interviewDate || app.interviewUrl || app.interviewer) && (
+          <div className="pt-2 border-t border-border">
+            <div className="flex items-center gap-1.5 mb-2">
+              <Calendar className="size-3.5 text-muted-foreground" />
+              <label className="text-xs font-medium text-muted-foreground">
+                Interview
+              </label>
+            </div>
+            <div className="rounded-lg border border-border bg-muted/40 px-3 py-2.5 space-y-1.5">
+              {app.interviewDate && (
+                <p className="text-sm text-foreground">
+                  {new Date(app.interviewDate).toLocaleString(undefined, {
+                    weekday: "short",
+                    month: "short",
+                    day: "numeric",
+                    hour: "numeric",
+                    minute: "2-digit",
+                  })}
+                </p>
+              )}
+              {app.interviewer && (
+                <p className="text-xs text-muted-foreground">
+                  with {app.interviewer}
+                </p>
+              )}
+              {app.interviewUrl && (
+                <a
+                  href={app.interviewUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 text-xs font-medium text-blue-600 dark:text-blue-400 hover:underline"
+                >
+                  Join meeting
+                  <ExternalLink className="size-2.5" />
+                </a>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Recruiter */}
+        {app.recruiterEmail && (
+          <div className="pt-2 border-t border-border">
+            <div className="flex items-center gap-1.5 mb-2">
+              <User className="size-3.5 text-muted-foreground" />
+              <label className="text-xs font-medium text-muted-foreground">Recruiter</label>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="flex size-7 items-center justify-center rounded-full bg-muted text-xs font-semibold text-foreground shrink-0">
+                {(app.recruiterName ?? app.recruiterEmail)[0].toUpperCase()}
+              </div>
+              <div className="min-w-0">
+                {app.recruiterName && (
+                  <p className="text-sm font-medium text-foreground truncate">{app.recruiterName}</p>
+                )}
+                <a
+                  href={`mailto:${app.recruiterEmail}`}
+                  className="text-xs text-blue-600 dark:text-blue-400 hover:underline truncate block"
+                >
+                  {app.recruiterEmail}
+                </a>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Job description snapshot */}
+        {app.jobDescriptionSnapshot && (
+          <div className="pt-2 border-t border-border">
+            <details>
+              <summary className="cursor-pointer text-xs font-medium text-muted-foreground hover:text-foreground transition-colors select-none">
+                Saved job description
+                {app.jobDescriptionFetchedAt && (
+                  <span className="ml-1 font-normal">
+                    (fetched {new Date(app.jobDescriptionFetchedAt).toLocaleDateString()})
+                  </span>
+                )}
+              </summary>
+              <pre className="mt-2 whitespace-pre-wrap text-xs text-muted-foreground leading-relaxed max-h-48 overflow-y-auto">
+                {app.jobDescriptionSnapshot}
+              </pre>
+              {app.jobUrl && (
+                <a
+                  href={app.jobUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-0.5 mt-1.5 text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                >
+                  View original <ExternalLink className="size-2.5" />
+                </a>
+              )}
+            </details>
           </div>
         )}
 

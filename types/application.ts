@@ -13,6 +13,18 @@ export interface Application {
   jobUrl: string | null
   manuallyEdited: boolean
   sourceEmailId: string | null
+  sourceEmailSubject: string | null
+  sourceEmailSnippet: string | null
+  sourceEmailReceivedAt: Date | null
+  interviewDate: Date | null
+  interviewUrl: string | null
+  interviewer: string | null
+  interviewProvider: string | null
+  recruiterName: string | null
+  recruiterEmail: string | null
+  lastFollowUpAt: Date | null
+  jobDescriptionSnapshot: string | null
+  jobDescriptionFetchedAt: Date | null
 }
 
 export interface StatusChangeRecord {

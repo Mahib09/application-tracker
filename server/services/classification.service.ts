@@ -12,6 +12,15 @@ export interface ClassificationResult {
   location: string | null
   date: Date
   confidence?: number
+  sourceEmailSubject?: string
+  sourceEmailSnippet?: string
+  sourceEmailReceivedAt?: Date
+  interviewDate?: string | null
+  interviewUrl?: string | null
+  interviewer?: string | null
+  interviewProvider?: string | null
+  recruiterName?: string | null
+  recruiterEmail?: string | null
 }
 
 export interface PipelineStats {
@@ -151,6 +160,9 @@ export async function classifyPipeline(
     }
   }
 
+  // Build lookup for source email fields (subject, snippet, date per messageId)
+  const emailRawMap = new Map(toClassify.map((e) => [e.messageId, e]))
+
   // Step 4: Sonnet classification (batched — 10 per API call, all batches in parallel)
   stats.sonnetCallCount = Math.ceil(sonnetInputs.length / 10)
   if (sonnetInputs.length === 0) {
@@ -158,8 +170,17 @@ export async function classifyPipeline(
   }
   const classificationResults = await sonnetClassify(sonnetInputs)
 
-  // Step 5: Confidence routing
-  const routed = classificationResults.map((r) => applyConfidenceRouting(r, stats))
+  // Step 5: Attach source email fields + confidence routing
+  const routed = classificationResults.map((r) => {
+    const raw = emailRawMap.get(r.messageId)
+    const withSource: ClassificationResult = {
+      ...r,
+      sourceEmailSubject: raw?.subject,
+      sourceEmailSnippet: raw?.snippet,
+      sourceEmailReceivedAt: raw?.date,
+    }
+    return applyConfidenceRouting(withSource, stats)
+  })
 
   return {
     results: [...routed, ...needsReviewFromFetch],

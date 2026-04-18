@@ -188,6 +188,39 @@ describe("preprocessText", () => {
   })
 })
 
+// ─── Source email fields flow through pipeline ──────────────────────────────
+
+describe("classifyPipeline — source email fields", () => {
+  it("attaches sourceEmailSubject and sourceEmailSnippet to result", async () => {
+    const email = makeEmail("msg-src")
+    mockHaikuTriage.mockResolvedValue([{ messageId: "msg-src", result: "YES" }])
+    mockSonnetClassify.mockResolvedValue([makeResult("msg-src", "APPLIED", 0.95)])
+    const { classifyPipeline } = await import("@/server/services/classification.service")
+    const { results } = await classifyPipeline([email], {} as any)
+    expect(results[0].sourceEmailSubject).toBe("Software Engineer at Acme")
+    expect(results[0].sourceEmailSnippet).toBe("We received your application")
+    expect(results[0].sourceEmailReceivedAt).toEqual(new Date("2025-03-01"))
+  })
+
+  it("attaches interview fields from Sonnet when status is INTERVIEW", async () => {
+    const email = makeEmail("msg-int")
+    mockHaikuTriage.mockResolvedValue([{ messageId: "msg-int", result: "YES" }])
+    mockSonnetClassify.mockResolvedValue([{
+      ...makeResult("msg-int", "INTERVIEW", 0.95),
+      interviewDate: "2025-04-01T14:00:00Z",
+      interviewUrl: "https://zoom.us/j/12345",
+      interviewer: "Jane Smith",
+      interviewProvider: "ZOOM",
+    }])
+    const { classifyPipeline } = await import("@/server/services/classification.service")
+    const { results } = await classifyPipeline([email], {} as any)
+    expect(results[0].interviewDate).toBe("2025-04-01T14:00:00Z")
+    expect(results[0].interviewUrl).toBe("https://zoom.us/j/12345")
+    expect(results[0].interviewer).toBe("Jane Smith")
+    expect(results[0].interviewProvider).toBe("ZOOM")
+  })
+})
+
 // ─── Re-exports still work ───────────────────────────────────────────────────
 
 describe("re-exports", () => {

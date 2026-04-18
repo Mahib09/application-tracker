@@ -2,6 +2,7 @@
 import { type Application } from "@/types/application"
 import { applicationStatus } from "@/app/generated/prisma/enums"
 import GhostProgressRing from "@/components/dashboard/GhostProgressRing"
+import CompanyLogo from "@/components/CompanyLogo"
 import { motion } from "motion/react"
 import { useReducedMotion } from "@/lib/hooks/useReducedMotion"
 import { useMediaQuery } from "@/lib/hooks/useMediaQuery"
@@ -45,9 +46,12 @@ export default function KanbanCard({ app, selected, onSelect, onDragStart, onDra
       }`}
     >
       <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0 flex-1">
-          <div className="truncate text-sm font-medium text-foreground">{app.company}</div>
-          <div className="truncate text-xs text-muted-foreground">{app.roleTitle}</div>
+        <div className="flex items-start gap-2 min-w-0 flex-1">
+          <CompanyLogo company={app.company} size={20} />
+          <div className="min-w-0">
+            <div className="truncate text-sm font-medium text-foreground">{app.company}</div>
+            <div className="truncate text-xs text-muted-foreground">{app.roleTitle}</div>
+          </div>
         </div>
         {isApplied && <GhostProgressRing daysSince={days} />}
       </div>

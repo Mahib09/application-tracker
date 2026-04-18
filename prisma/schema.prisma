@@ -40,9 +40,23 @@ model Application {
   location  String?
   notes     String?
 
-  confidence     Float?
-  manuallyEdited Boolean @default(false)
-  sourceEmailId  String?
+  confidence            Float?
+  manuallyEdited        Boolean   @default(false)
+  sourceEmailId         String?
+  sourceEmailSubject    String?
+  sourceEmailSnippet    String?
+  sourceEmailReceivedAt DateTime?
+
+  interviewDate     DateTime?
+  interviewUrl      String?
+  interviewer       String?
+  interviewProvider String?
+
+  recruiterName           String?
+  recruiterEmail          String?
+  lastFollowUpAt          DateTime?
+  jobDescriptionSnapshot  String?
+  jobDescriptionFetchedAt DateTime?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -51,6 +65,7 @@ model Application {
 
   @@index([userId, status])
   @@index([userId, appliedAt])
+  @@index([userId, confidence])
 }
 
 model StatusChange {

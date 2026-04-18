@@ -7,6 +7,7 @@ import BulkActionBar from "@/components/dashboard/BulkActionBar"
 import RowContextMenu from "@/components/dashboard/RowContextMenu"
 import { Button } from "@/components/ui/button"
 import { Check, X, ArrowUp, ArrowDown } from "lucide-react"
+import CompanyLogo from "@/components/CompanyLogo"
 
 type SortField = "company" | "roleTitle" | "appliedAt" | "daysSince"
 type SortDir = "asc" | "desc"
@@ -254,7 +255,12 @@ export default function ApplicationTable({
                     />
                   </td>
 
-                  <td className="px-3 py-2.5 font-medium text-foreground">{app.company}</td>
+                  <td className="px-3 py-2.5">
+                    <div className="flex items-center gap-2">
+                      <CompanyLogo company={app.company} size={20} />
+                      <span className="font-medium text-foreground">{app.company}</span>
+                    </div>
+                  </td>
                   <td className="px-3 py-2.5 text-muted-foreground">{app.roleTitle}</td>
                   <td className="px-3 py-2.5">
                     <span className="flex items-center gap-1.5">
