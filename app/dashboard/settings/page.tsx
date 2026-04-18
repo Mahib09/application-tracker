@@ -21,7 +21,7 @@ export default async function SettingsPage() {
     : 0
 
   return (
-    <DashboardShell lastSyncedAt={syncState?.lastSyncedAt ?? null} cooldownMs={cooldownMs} hideToolbar>
+    <DashboardShell lastSyncedAt={syncState?.lastSyncedAt ?? null} cooldownMs={cooldownMs} hideToolbar scrollable>
       <SettingsClient
         user={{ name: session.user.name ?? null, email: session.user.email ?? "", image: session.user.image ?? null }}
         lastSyncedAt={syncState?.lastSyncedAt ?? null}

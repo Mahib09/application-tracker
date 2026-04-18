@@ -23,7 +23,7 @@ export default async function FollowUpsPage() {
     : 0
 
   return (
-    <DashboardShell lastSyncedAt={syncState?.lastSyncedAt ?? null} cooldownMs={cooldownMs} hideToolbar>
+    <DashboardShell lastSyncedAt={syncState?.lastSyncedAt ?? null} cooldownMs={cooldownMs} hideToolbar scrollable>
       <div className="py-4 space-y-4">
         <div className="flex items-center gap-2">
           <h1 className="text-lg font-semibold text-foreground">Follow-ups</h1>

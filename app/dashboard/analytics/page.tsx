@@ -54,6 +54,7 @@ export default async function AnalyticsPage() {
       lastSyncedAt={syncState?.lastSyncedAt ?? null}
       cooldownMs={cooldown(syncState?.lastSyncedAt ?? null, now)}
       hideToolbar
+      scrollable
     >
       <AnalyticsDashboard metrics={metrics} />
     </DashboardShell>
