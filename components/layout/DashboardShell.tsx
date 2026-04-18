@@ -9,6 +9,7 @@ interface DashboardShellProps {
   lastSyncedAt: Date | null;
   cooldownMs: number;
   hideToolbar?: boolean;
+  scrollable?: boolean;
   children: React.ReactNode;
 }
 
@@ -16,12 +17,19 @@ export default function DashboardShell({
   lastSyncedAt,
   cooldownMs,
   hideToolbar,
+  scrollable,
   children,
 }: DashboardShellProps) {
   return (
     <CommandPaletteProvider>
       <NavSidebarProvider>
-        <div className="h-screen flex bg-background overflow-hidden">
+        <div
+          className={
+            scrollable
+              ? "min-h-screen flex flex-col bg-background"
+              : "h-screen flex bg-background overflow-hidden"
+          }
+        >
           <NavSidebar />
           <div className="flex-1 flex flex-col min-w-0">
             <NavBar />
