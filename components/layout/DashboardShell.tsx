@@ -26,11 +26,13 @@ export default function DashboardShell({
         <div
           className={
             scrollable
-              ? "min-h-screen flex flex-col bg-background"
+              ? "min-h-screen flex bg-background"
               : "h-screen flex bg-background overflow-hidden"
           }
         >
-          <NavSidebar />
+          <div className={scrollable ? "sticky top-0 h-screen self-start shrink-0" : "contents"}>
+            <NavSidebar />
+          </div>
           <div className="flex-1 flex flex-col min-w-0">
             <NavBar />
             {!hideToolbar && (
@@ -38,7 +40,7 @@ export default function DashboardShell({
                 <Toolbar lastSyncedAt={lastSyncedAt} cooldownMs={cooldownMs} />
               </div>
             )}
-            <div className="flex-1 min-h-0 max-w-7xl mx-auto w-full px-6 pb-2">
+            <div className={scrollable ? "flex-1 max-w-7xl mx-auto w-full px-6 pb-2" : "flex-1 min-h-0 max-w-7xl mx-auto w-full px-6 pb-2"}>
               {children}
             </div>
           </div>
