@@ -55,8 +55,16 @@ export default function KanbanCard({ app, selected, onSelect, onDragStart, onDra
         </div>
         {isApplied && <GhostProgressRing daysSince={days} />}
       </div>
-      <div className="mt-1.5 text-[11px] text-muted-foreground tabular-nums">
-        {days === 0 ? "Today" : `${days}d`}
+      <div className="mt-1.5 flex items-center gap-1.5 flex-wrap">
+        <span className="text-[11px] text-muted-foreground tabular-nums">
+          {days === 0 ? "Today" : `${days}d`}
+        </span>
+        {app.tags?.slice(0, 2).map((t) => (
+          <span key={t} className="rounded-full bg-muted border border-border px-1.5 py-px text-[10px] text-muted-foreground">{t}</span>
+        ))}
+        {(app.tags?.length ?? 0) > 2 && (
+          <span className="rounded-full bg-muted border border-border px-1.5 py-px text-[10px] text-muted-foreground">+{app.tags.length - 2}</span>
+        )}
       </div>
     </motion.div>
   )

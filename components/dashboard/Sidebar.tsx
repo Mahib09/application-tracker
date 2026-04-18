@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   applicationStatus,
   applicationSource,
@@ -28,6 +28,55 @@ interface Props {
   hasNext?: boolean;
   onDelete?: () => void;
   onClose?: () => void;
+}
+
+function TagsSection({ tags, onSave }: { tags: string[]; onSave: (tags: string[]) => void }) {
+  const [adding, setAdding] = useState(false)
+  const [input, setInput] = useState("")
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    if (adding) inputRef.current?.focus()
+  }, [adding])
+
+  const addTag = () => {
+    const tag = input.trim().toLowerCase().slice(0, 20)
+    if (!tag || tags.includes(tag) || tags.length >= 10) { setInput(""); setAdding(false); return }
+    onSave([...tags, tag])
+    setInput("")
+    setAdding(false)
+  }
+
+  const removeTag = (t: string) => onSave(tags.filter((x) => x !== t))
+
+  return (
+    <div className="pt-2 border-t border-border">
+      <label className="text-xs font-medium text-muted-foreground mb-2 block">Tags</label>
+      <div className="flex flex-wrap gap-1.5 items-center">
+        {tags.map((t) => (
+          <span key={t} className="inline-flex items-center gap-1 rounded-full border border-border bg-muted px-2 py-0.5 text-xs text-foreground">
+            {t}
+            <button onClick={() => removeTag(t)} className="text-muted-foreground hover:text-foreground leading-none">×</button>
+          </span>
+        ))}
+        {adding ? (
+          <input
+            ref={inputRef}
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") addTag(); if (e.key === "Escape") { setAdding(false); setInput("") } }}
+            onBlur={addTag}
+            placeholder="tag name"
+            className="rounded-full border border-primary bg-background px-2 py-0.5 text-xs outline-none w-24"
+          />
+        ) : tags.length < 10 && (
+          <button onClick={() => setAdding(true)} className="rounded-full border border-dashed border-border px-2 py-0.5 text-xs text-muted-foreground hover:text-foreground hover:border-foreground/40 transition-colors">
+            + Add
+          </button>
+        )}
+      </div>
+    </div>
+  )
 }
 
 export default function Sidebar({
@@ -422,6 +471,9 @@ export default function Sidebar({
             </details>
           </div>
         )}
+
+        {/* Tags */}
+        <TagsSection tags={app.tags ?? []} onSave={(tags) => onUpdate(app.id, { tags })} />
 
         {/* Timeline */}
         {statusHistory.length > 0 && (

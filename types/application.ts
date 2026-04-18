@@ -25,6 +25,7 @@ export interface Application {
   lastFollowUpAt: Date | null
   jobDescriptionSnapshot: string | null
   jobDescriptionFetchedAt: Date | null
+  tags: string[]
 }
 
 export interface StatusChangeRecord {

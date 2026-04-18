@@ -261,7 +261,21 @@ export default function ApplicationTable({
                       <span className="font-medium text-foreground">{app.company}</span>
                     </div>
                   </td>
-                  <td className="px-3 py-2.5 text-muted-foreground">{app.roleTitle}</td>
+                  <td className="px-3 py-2.5">
+                    <div className="flex flex-col gap-0.5">
+                      <span className="text-muted-foreground">{app.roleTitle}</span>
+                      {app.tags?.length > 0 && (
+                        <div className="flex gap-1 flex-wrap">
+                          {app.tags.slice(0, 2).map((t) => (
+                            <span key={t} className="rounded-full bg-muted border border-border px-1.5 py-px text-[10px] text-muted-foreground">{t}</span>
+                          ))}
+                          {app.tags.length > 2 && (
+                            <span className="rounded-full bg-muted border border-border px-1.5 py-px text-[10px] text-muted-foreground">+{app.tags.length - 2}</span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </td>
                   <td className="px-3 py-2.5">
                     <span className="flex items-center gap-1.5">
                       <span className="size-2 rounded-full shrink-0" style={{ backgroundColor: STATUS_COLORS[status] }} />

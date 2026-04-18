@@ -39,6 +39,7 @@ export default function DashboardContent({
   const view: "table" | "kanban" = searchParams.get("view") === "kanban" ? "kanban" : "table"
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [filterStatus, setFilterStatus] = useState<applicationStatus | "ALL">("ALL")
+  const [filterTag, setFilterTag] = useState<string | null>(null)
   const [cheatsheetOpen, setCheatsheetOpen] = useState(false)
   const [hiddenIds, setHiddenIds] = useState<Set<string>>(new Set())
   const undo = useUndoAction()
@@ -55,9 +56,19 @@ export default function DashboardContent({
     [router, pathname, searchParams],
   )
 
+  const allTags = useMemo(() => {
+    const set = new Set<string>()
+    for (const a of applications) for (const t of (a.tags ?? [])) set.add(t)
+    return [...set].sort()
+  }, [applications])
+
   const visibleApplications = useMemo(
-    () => applications.filter((a) => !hiddenIds.has(a.id)),
-    [applications, hiddenIds],
+    () => applications.filter((a) => {
+      if (hiddenIds.has(a.id)) return false
+      if (filterTag && !(a.tags ?? []).includes(filterTag)) return false
+      return true
+    }),
+    [applications, hiddenIds, filterTag],
   )
   const nonReview = useMemo(
     () => visibleApplications.filter((a) => a.status !== applicationStatus.NEEDS_REVIEW),
@@ -236,6 +247,9 @@ export default function DashboardContent({
       <UnifiedHeader
         filterStatus={filterStatus}
         onFilterChange={setFilterStatus}
+        allTags={allTags}
+        filterTag={filterTag}
+        onFilterTag={setFilterTag}
       />
 
       {/* Content area: table + sidebar */}

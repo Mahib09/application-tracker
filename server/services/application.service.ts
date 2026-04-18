@@ -25,6 +25,7 @@ type UpdateApplicationInput = {
   jobUrl?: string;
   appliedAt?: Date;
   notes?: string;
+  tags?: string[];
   trigger?: changeTrigger;
 };
 
@@ -99,6 +100,13 @@ export async function updateApplication(
 
   if (!applicationId) {
     throw new Error("applicationId is required");
+  }
+
+  if (patch.tags !== undefined) {
+    if (patch.tags.length > 10) throw new Error("Too many tags");
+    const tooLong = patch.tags.find((t) => t.length > 20);
+    if (tooLong) throw new Error("Tag too long");
+    patch = { ...patch, tags: patch.tags.map((t) => t.trim().toLowerCase()) };
   }
 
   const { trigger, ...data } = patch;

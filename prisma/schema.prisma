@@ -58,6 +58,8 @@ model Application {
   jobDescriptionSnapshot  String?
   jobDescriptionFetchedAt DateTime?
 
+  tags String[] @default([])
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

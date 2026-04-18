@@ -1,21 +1,31 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { applicationStatus } from "@/app/generated/prisma/enums"
 import {
-  AlertDialog,
-  AlertDialogContent,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogFooter,
-  AlertDialogCancel,
-} from "@/components/ui/alert-dialog"
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+  DialogClose,
+} from "@/components/ui/dialog"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { toast } from "@/lib/toast"
-import { STATUS_CONFIG } from "@/lib/constants"
-import { Plus } from "lucide-react"
+import { STATUS_CONFIG, STATUS_COLORS } from "@/lib/constants"
+import { Plus, ChevronDown } from "lucide-react"
 
 const STATUSES = [
   applicationStatus.APPLIED,
@@ -24,18 +34,39 @@ const STATUSES = [
   applicationStatus.REJECTED,
 ]
 
+interface FormState {
+  company: string
+  roleTitle: string
+  status: applicationStatus
+  location: string
+  jobUrl: string
+  notes: string
+}
+
+const EMPTY_FORM: FormState = {
+  company: "",
+  roleTitle: "",
+  status: applicationStatus.APPLIED,
+  location: "",
+  jobUrl: "",
+  notes: "",
+}
+
+function StatusDot({ status }: { status: applicationStatus }) {
+  return (
+    <span
+      className="size-2 rounded-full shrink-0"
+      style={{ backgroundColor: STATUS_COLORS[status] }}
+    />
+  )
+}
+
 export default function AddApplicationDialog() {
   const router = useRouter()
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
-  const [form, setForm] = useState({
-    company: "",
-    roleTitle: "",
-    status: applicationStatus.APPLIED,
-    location: "",
-    jobUrl: "",
-    notes: "",
-  })
+  const [showMore, setShowMore] = useState(false)
+  const [form, setForm] = useState(EMPTY_FORM)
 
   useEffect(() => {
     const handler = () => setOpen(true)
@@ -43,15 +74,26 @@ export default function AddApplicationDialog() {
     return () => window.removeEventListener("open-add-dialog", handler)
   }, [])
 
-  const field = (key: keyof typeof form) => (
-    (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
-      setForm((f) => ({ ...f, [key]: e.target.value }))
-  )
+  const resetForm = useCallback(() => {
+    setForm(EMPTY_FORM)
+    setShowMore(false)
+  }, [])
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!form.company.trim() || !form.roleTitle.trim()) return
+  const handleOpenChange = (next: boolean) => {
+    setOpen(next)
+    if (!next) resetForm()
+  }
 
+  const urlTrimmed = form.jobUrl.trim()
+  const urlInvalid = urlTrimmed !== "" && !URL.canParse(urlTrimmed)
+  const canSubmit =
+    !loading &&
+    form.company.trim() !== "" &&
+    form.roleTitle.trim() !== "" &&
+    !urlInvalid
+
+  const submit = async () => {
+    if (!canSubmit) return
     setLoading(true)
     try {
       const res = await fetch("/api/applications", {
@@ -63,7 +105,7 @@ export default function AddApplicationDialog() {
           status: form.status,
           source: "MANUAL",
           ...(form.location.trim() && { location: form.location.trim() }),
-          ...(form.jobUrl.trim() && { jobUrl: form.jobUrl.trim() }),
+          ...(urlTrimmed && { jobUrl: urlTrimmed }),
           ...(form.notes.trim() && { notes: form.notes.trim() }),
         }),
       })
@@ -76,7 +118,7 @@ export default function AddApplicationDialog() {
 
       toast.success("Application added")
       setOpen(false)
-      setForm({ company: "", roleTitle: "", status: applicationStatus.APPLIED, location: "", jobUrl: "", notes: "" })
+      resetForm()
       router.refresh()
     } catch {
       toast.error("Failed to add application")
@@ -85,7 +127,17 @@ export default function AddApplicationDialog() {
     }
   }
 
-  const inputCls = "w-full rounded-lg border border-input bg-transparent px-3 py-2 text-sm outline-none focus:border-ring focus:ring-3 focus:ring-ring/50 placeholder:text-muted-foreground"
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    submit()
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLFormElement>) => {
+    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+      e.preventDefault()
+      submit()
+    }
+  }
 
   return (
     <>
@@ -94,91 +146,139 @@ export default function AddApplicationDialog() {
         Add
       </Button>
 
-      <AlertDialog open={open} onOpenChange={setOpen}>
-        <AlertDialogContent className="max-w-md!" size="default">
-          <AlertDialogHeader>
-            <AlertDialogTitle>Add application</AlertDialogTitle>
-          </AlertDialogHeader>
+      <Dialog open={open} onOpenChange={handleOpenChange}>
+        <DialogContent size="default">
+          <DialogHeader>
+            <DialogTitle>Add application</DialogTitle>
+            <DialogDescription>
+              Track a role you applied to manually.
+            </DialogDescription>
+          </DialogHeader>
 
-          <form onSubmit={handleSubmit} className="space-y-3">
+          <form onSubmit={handleSubmit} onKeyDown={handleKeyDown} className="space-y-4">
+            {/* Required fields */}
             <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <label className="text-xs font-medium text-slate-600">Company *</label>
-                <input
+              <div className="space-y-1.5">
+                <Label htmlFor="add-company">
+                  Company <span className="text-destructive">*</span>
+                </Label>
+                <Input
+                  id="add-company"
                   required
+                  autoFocus
                   placeholder="Acme Corp"
                   value={form.company}
-                  onChange={field("company")}
-                  className={inputCls}
+                  onChange={(e) => setForm((f) => ({ ...f, company: e.target.value }))}
                 />
               </div>
-              <div className="space-y-1">
-                <label className="text-xs font-medium text-slate-600">Role *</label>
-                <input
+              <div className="space-y-1.5">
+                <Label htmlFor="add-role">
+                  Role <span className="text-destructive">*</span>
+                </Label>
+                <Input
+                  id="add-role"
                   required
                   placeholder="Software Engineer"
                   value={form.roleTitle}
-                  onChange={field("roleTitle")}
-                  className={inputCls}
+                  onChange={(e) => setForm((f) => ({ ...f, roleTitle: e.target.value }))}
                 />
               </div>
             </div>
 
+            {/* Status + Location */}
             <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <label className="text-xs font-medium text-slate-600">Status</label>
-                <select
+              <div className="space-y-1.5">
+                <Label htmlFor="add-status">Status</Label>
+                <Select
                   value={form.status}
-                  onChange={field("status")}
-                  className={inputCls}
+                  onValueChange={(v) =>
+                    setForm((f) => ({ ...f, status: v as applicationStatus }))
+                  }
                 >
-                  {STATUSES.map((s) => (
-                    <option key={s} value={s}>{STATUS_CONFIG[s].label}</option>
-                  ))}
-                </select>
+                  <SelectTrigger id="add-status" className="w-full">
+                    <SelectValue>
+                      <StatusDot status={form.status} />
+                      <span>{STATUS_CONFIG[form.status].label}</span>
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {STATUSES.map((s) => (
+                      <SelectItem key={s} value={s}>
+                        <StatusDot status={s} />
+                        <span>{STATUS_CONFIG[s].label}</span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
-              <div className="space-y-1">
-                <label className="text-xs font-medium text-slate-600">Location</label>
-                <input
+              <div className="space-y-1.5">
+                <Label htmlFor="add-location">Location</Label>
+                <Input
+                  id="add-location"
                   placeholder="San Francisco, CA"
                   value={form.location}
-                  onChange={field("location")}
-                  className={inputCls}
+                  onChange={(e) => setForm((f) => ({ ...f, location: e.target.value }))}
                 />
               </div>
             </div>
 
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-slate-600">Job URL</label>
-              <input
-                type="url"
-                placeholder="https://..."
-                value={form.jobUrl}
-                onChange={field("jobUrl")}
-                className={inputCls}
-              />
+            {/* More details disclosure */}
+            <div className="space-y-3">
+              <button
+                type="button"
+                onClick={() => setShowMore((v) => !v)}
+                className="flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
+                aria-expanded={showMore}
+              >
+                <ChevronDown
+                  className={`size-3.5 transition-transform ${showMore ? "rotate-180" : ""}`}
+                />
+                {showMore ? "Hide details" : "More details"}
+              </button>
+
+              {showMore && (
+                <div className="space-y-3">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="add-url">Job URL</Label>
+                    <Input
+                      id="add-url"
+                      type="url"
+                      placeholder="https://…"
+                      value={form.jobUrl}
+                      onChange={(e) => setForm((f) => ({ ...f, jobUrl: e.target.value }))}
+                      aria-invalid={urlInvalid || undefined}
+                      aria-describedby={urlInvalid ? "add-url-error" : undefined}
+                    />
+                    {urlInvalid && (
+                      <p id="add-url-error" className="text-xs text-destructive">
+                        Enter a valid URL (e.g. https://example.com)
+                      </p>
+                    )}
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="add-notes">Notes</Label>
+                    <Textarea
+                      id="add-notes"
+                      placeholder="Any notes about this role…"
+                      value={form.notes}
+                      onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
+                      rows={2}
+                      className="resize-none text-sm"
+                    />
+                  </div>
+                </div>
+              )}
             </div>
 
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-slate-600">Notes</label>
-              <Textarea
-                placeholder="Any notes about this role…"
-                value={form.notes}
-                onChange={field("notes")}
-                rows={2}
-                className="resize-none text-sm"
-              />
-            </div>
-
-            <AlertDialogFooter>
-              <AlertDialogCancel disabled={loading}>Cancel</AlertDialogCancel>
-              <Button type="submit" disabled={loading || !form.company.trim() || !form.roleTitle.trim()}>
-                {loading ? "Adding…" : "Add application"}
+            <DialogFooter>
+              <DialogClose disabled={loading}>Cancel</DialogClose>
+              <Button type="submit" disabled={!canSubmit}>
+                {loading ? "Adding…" : "Add"}
               </Button>
-            </AlertDialogFooter>
+            </DialogFooter>
           </form>
-        </AlertDialogContent>
-      </AlertDialog>
+        </DialogContent>
+      </Dialog>
     </>
   )
 }

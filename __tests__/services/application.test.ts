@@ -84,3 +84,47 @@ describe("overrideClassification", () => {
     ).rejects.toThrow("application not found")
   })
 })
+
+// ─── updateApplication tags ──────────────────────────────────────────────────
+
+describe("updateApplication — tags", () => {
+  it("persists a tags array update", async () => {
+    vi.mocked(prisma.application.findFirst).mockResolvedValue({
+      id: "app-1", userId: "user-1", status: "APPLIED",
+    } as any)
+    vi.mocked(prisma.application.update).mockResolvedValue({ id: "app-1" } as any)
+
+    const { updateApplication } = await import("@/server/services/application.service")
+    await updateApplication("user-1", "app-1", { tags: ["react", "frontend"] } as any)
+
+    expect(prisma.application.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "app-1" },
+        data: expect.objectContaining({ tags: ["react", "frontend"] }),
+      })
+    )
+  })
+
+  it("enforces max 10 tags", async () => {
+    vi.mocked(prisma.application.findFirst).mockResolvedValue({
+      id: "app-1", userId: "user-1", status: "APPLIED",
+    } as any)
+
+    const { updateApplication } = await import("@/server/services/application.service")
+    const tooMany = Array.from({ length: 11 }, (_, i) => `tag${i}`)
+    await expect(
+      updateApplication("user-1", "app-1", { tags: tooMany } as any)
+    ).rejects.toThrow("Too many tags")
+  })
+
+  it("enforces max 20 chars per tag", async () => {
+    vi.mocked(prisma.application.findFirst).mockResolvedValue({
+      id: "app-1", userId: "user-1", status: "APPLIED",
+    } as any)
+
+    const { updateApplication } = await import("@/server/services/application.service")
+    await expect(
+      updateApplication("user-1", "app-1", { tags: ["a".repeat(21)] } as any)
+    ).rejects.toThrow("Tag too long")
+  })
+})
