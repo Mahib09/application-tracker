@@ -5,6 +5,7 @@ import ScrollProgress from "./ScrollProgress"
 import TrustStrip from "./TrustStrip"
 import ProblemStatement from "./ProblemStatement"
 import HowItWorks from "./HowItWorks"
+import FeatureSection from "./FeatureSection"
 
 export default function LandingPage() {
   return (
@@ -22,7 +23,8 @@ export default function LandingPage() {
         <TrustStrip />
         <ProblemStatement />
         <HowItWorks />
-        {/* FeatureSection, PrivacyDeepDive, NotesFromBuild, FAQSection, FinalCTA, LandingFooter */}
+        <FeatureSection />
+        {/* PrivacyDeepDive, NotesFromBuild, FAQSection, FinalCTA, LandingFooter */}
       </main>
     </div>
   )
