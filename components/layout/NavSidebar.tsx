@@ -77,19 +77,36 @@ export default function NavSidebar() {
 
       {/* User section */}
       {session?.user && (
-        <div className="border-t border-border px-3 py-3">
+        <div className="border-t border-border/70 px-3 py-3 bg-card">
           <div className="flex items-center gap-3">
-            <div className="size-8 rounded-full bg-muted flex items-center justify-center text-xs font-medium text-foreground shrink-0">
-              {initials}
+            <div className="relative shrink-0">
+              {session.user.image ? (
+                <img
+                  src={session.user.image}
+                  alt={session.user.name ?? "Profile"}
+                  className="size-9 rounded-full object-cover ring-1 ring-border"
+                />
+              ) : (
+                <div className="size-9 rounded-full bg-linear-to-br from-blue-500 to-violet-500 flex items-center justify-center text-xs font-semibold text-white">
+                  {initials}
+                </div>
+              )}
+              <span
+                aria-hidden
+                className="absolute -bottom-0.5 -right-0.5 size-2.5 rounded-full bg-emerald-500 ring-2 ring-card"
+              />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-foreground truncate">{session.user.name}</p>
+              <p className="text-sm font-medium text-foreground truncate leading-tight">
+                {session.user.name}
+              </p>
               <p className="text-xs text-muted-foreground truncate">{session.user.email}</p>
             </div>
             <button
               onClick={() => signOut({ callbackUrl: "/login" })}
               className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
               aria-label="Sign out"
+              title="Sign out"
             >
               <LogOut className="size-3.5" />
             </button>
@@ -134,7 +151,7 @@ export default function NavSidebar() {
     <AnimatePresence>
       {isOpen && (
         <motion.aside
-          className="shrink-0 overflow-hidden"
+          className="shrink-0 overflow-hidden h-full"
           initial={reduced ? { opacity: 0 } : { width: 0 }}
           animate={reduced ? { opacity: 1 } : { width: 240 }}
           exit={reduced ? { opacity: 0 } : { width: 0 }}
