@@ -2,6 +2,8 @@
 import LandingNav from "./LandingNav"
 import Hero from "./Hero"
 import ScrollProgress from "./ScrollProgress"
+import TrustStrip from "./TrustStrip"
+import ProblemStatement from "./ProblemStatement"
 
 export default function LandingPage() {
   return (
@@ -16,7 +18,9 @@ export default function LandingPage() {
       <LandingNav />
       <main id="main">
         <Hero />
-        {/* Sections added in subsequent tasks */}
+        <TrustStrip />
+        <ProblemStatement />
+        {/* HowItWorks, FeatureSection, PrivacyDeepDive, NotesFromBuild, FAQSection, FinalCTA, LandingFooter */}
       </main>
     </div>
   )
