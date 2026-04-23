@@ -1,7 +1,7 @@
 "use client"
 import { useEffect, useState } from "react"
 import { signIn } from "next-auth/react"
-import { motion } from "motion/react"
+import { motion, useReducedMotion } from "motion/react"
 import Link from "next/link"
 
 const NAV_LINKS = [
@@ -12,6 +12,7 @@ const NAV_LINKS = [
 
 export default function LandingNav() {
   const [scrolled, setScrolled] = useState(false)
+  const reduced = useReducedMotion()
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 40)
@@ -21,7 +22,7 @@ export default function LandingNav() {
 
   return (
     <motion.nav
-      initial={{ opacity: 0, y: -8 }}
+      initial={reduced ? false : { opacity: 0, y: -8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4, ease: "easeOut" }}
       className={`fixed top-2 left-0 right-0 z-40 mx-auto max-w-7xl px-6 lg:px-8`}

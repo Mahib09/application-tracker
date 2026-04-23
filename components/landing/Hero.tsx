@@ -64,7 +64,7 @@ export default function Hero() {
   return (
     <section
       ref={sectionRef}
-      className="relative min-h-[200vh] bg-[#0A0A0B] text-white"
+      className="relative min-h-screen lg:min-h-[200vh] bg-[#0A0A0B] text-white"
     >
       <GrainOverlay />
       <MouseGlow />
@@ -87,7 +87,7 @@ export default function Hero() {
             {/* Left — text */}
             <div className="flex flex-col items-start">
               <span className="mb-6 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/6 px-3 py-1 text-xs text-white/60">
-                <span className="size-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                <span className="size-1.5 rounded-full bg-emerald-400 animate-pulse motion-reduce:animate-none" />
                 Currently in testing · invite only
               </span>
 

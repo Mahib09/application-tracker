@@ -171,7 +171,7 @@ function MorphPanel({ morphed }: { morphed: boolean }) {
               {HERO_EMAILS.length}
             </span>
           </div>
-          <MoreHorizontal className="size-4 text-white/30" />
+          <MoreHorizontal className="size-4 text-white/30" aria-hidden />
         </motion.div>
 
         <motion.div
