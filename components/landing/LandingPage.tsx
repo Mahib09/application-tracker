@@ -1,16 +1,16 @@
-"use client"
-import LandingNav from "./LandingNav"
-import Hero from "./Hero"
-import ScrollProgress from "./ScrollProgress"
-import TrustStrip from "./TrustStrip"
-import ProblemStatement from "./ProblemStatement"
-import HowItWorks from "./HowItWorks"
-import FeatureSection from "./FeatureSection"
-import PrivacyDeepDive from "./PrivacyDeepDive"
-import NotesFromBuild from "./NotesFromBuild"
-import FAQSection from "./FAQSection"
-import FinalCTA from "./FinalCTA"
-import LandingFooter from "./LandingFooter"
+"use client";
+import LandingNav from "./LandingNav";
+import Hero from "./Hero";
+import ScrollProgress from "./ScrollProgress";
+import TrustStrip from "./TrustStrip";
+import ProblemStatement from "./ProblemStatement";
+import HowItWorks from "./HowItWorks";
+import FeatureSection from "./FeatureSection";
+import PrivacyDeepDive from "./PrivacyDeepDive";
+import NotesFromBuild from "./NotesFromBuild";
+import FAQSection from "./FAQSection";
+import FinalCTA from "./FinalCTA";
+import LandingFooter from "./LandingFooter";
 
 export default function LandingPage() {
   return (
@@ -36,5 +36,5 @@ export default function LandingPage() {
       </main>
       <LandingFooter />
     </div>
-  )
+  );
 }
