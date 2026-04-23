@@ -14,6 +14,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL(
+    process.env.NEXT_PUBLIC_BASE_URL ?? "https://paila.app"
+  ),
   title: {
     default: "Paila — The application tracker that tracks itself",
     template: "%s · Paila",
