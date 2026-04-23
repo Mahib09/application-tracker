@@ -1,6 +1,6 @@
 "use client"
 import { useRef } from "react"
-import { useScroll } from "motion/react"
+import { useScroll, motion, useReducedMotion } from "motion/react"
 import { signIn } from "next-auth/react"
 import { ArrowRight } from "lucide-react"
 import GrainOverlay from "./GrainOverlay"
@@ -54,7 +54,10 @@ export function SignInButton({ dark = false }: { dark?: boolean }) {
   )
 }
 
+const EXPO_OUT = [0.16, 1, 0.3, 1] as [number, number, number, number]
+
 export default function Hero() {
+  const reduced = useReducedMotion()
   const sectionRef = useRef<HTMLElement>(null)
   const { scrollYProgress } = useScroll({
     target: sectionRef,
@@ -84,25 +87,43 @@ export default function Hero() {
         {/* Main content grid */}
         <div className="relative z-10 mx-auto max-w-7xl px-6 lg:px-8 h-full flex items-center">
           <div className="grid lg:grid-cols-2 gap-16 items-center w-full pt-16">
-            {/* Left — text */}
+            {/* Left — text with staggered mount animation */}
             <div className="flex flex-col items-start">
-              <span className="mb-6 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/6 px-3 py-1 text-xs text-white/60">
+              <motion.span
+                initial={reduced ? false : { opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.65, ease: EXPO_OUT, delay: 0 }}
+                className="mb-6 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/6 px-3 py-1 text-xs text-white/60"
+              >
                 <span className="size-1.5 rounded-full bg-emerald-400 animate-pulse motion-reduce:animate-none" />
                 Currently in testing · invite only
-              </span>
+              </motion.span>
 
-              <h1
+              <motion.h1
+                initial={reduced ? false : { opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.65, ease: EXPO_OUT, delay: 0.1 }}
                 className="font-semibold tracking-[-0.04em] leading-[0.95] text-white"
                 style={{ fontSize: "clamp(48px, 7vw, 112px)" }}
               >
                 {LANDING_COPY.hero.h1}
-              </h1>
+              </motion.h1>
 
-              <p className="mt-7 text-lg leading-relaxed text-white/55 max-w-lg">
+              <motion.p
+                initial={reduced ? false : { opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.65, ease: EXPO_OUT, delay: 0.2 }}
+                className="mt-7 text-lg leading-relaxed text-white/55 max-w-lg"
+              >
                 {LANDING_COPY.hero.sub}
-              </p>
+              </motion.p>
 
-              <div className="mt-10 flex flex-wrap items-center gap-4">
+              <motion.div
+                initial={reduced ? false : { opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.65, ease: EXPO_OUT, delay: 0.3 }}
+                className="mt-10 flex flex-wrap items-center gap-4"
+              >
                 <SignInButton dark />
                 <a
                   href="#how-it-works"
@@ -111,11 +132,16 @@ export default function Hero() {
                   {LANDING_COPY.hero.secondaryCta}
                   <ArrowRight className="size-3.5" />
                 </a>
-              </div>
+              </motion.div>
 
-              <p className="mt-6 text-xs text-white/25">
+              <motion.p
+                initial={reduced ? false : { opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.5, ease: "easeOut", delay: 0.38 }}
+                className="mt-6 text-xs text-white/25"
+              >
                 No credit card. No paid tier.
-              </p>
+              </motion.p>
             </div>
 
             {/* Right — morph panel (desktop only) */}

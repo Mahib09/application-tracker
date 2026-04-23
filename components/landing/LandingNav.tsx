@@ -1,6 +1,5 @@
 "use client"
 import { useEffect, useState } from "react"
-import { signIn } from "next-auth/react"
 import { motion, useReducedMotion } from "motion/react"
 import Link from "next/link"
 
@@ -56,12 +55,12 @@ export default function LandingNav() {
         </div>
 
         {/* CTA */}
-        <button
-          onClick={() => signIn("google", { callbackUrl: "/dashboard" })}
+        <Link
+          href="/login"
           className="rounded-lg bg-foreground px-4 py-2 text-sm font-medium text-background hover:opacity-90 transition-opacity"
         >
           Sign in
-        </button>
+        </Link>
       </div>
     </motion.nav>
   )
