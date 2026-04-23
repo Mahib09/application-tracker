@@ -1,12 +1,13 @@
 "use client"
+import { useRef } from "react"
+import { useScroll } from "motion/react"
 import { signIn } from "next-auth/react"
-import { ArrowRight, MoreHorizontal } from "lucide-react"
+import { ArrowRight } from "lucide-react"
 import GrainOverlay from "./GrainOverlay"
 import MouseGlow from "./MouseGlow"
-import EmailCard from "./EmailCard"
-import { LANDING_COPY, HERO_EMAILS } from "@/lib/landing/content"
+import HeroMorph from "./HeroMorph"
+import { LANDING_COPY } from "@/lib/landing/content"
 
-// Google G SVG — inline so no asset pipeline needed
 function GoogleIcon() {
   return (
     <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden>
@@ -30,7 +31,7 @@ function GoogleIcon() {
   )
 }
 
-function SignInButton({ dark = false }: { dark?: boolean }) {
+export function SignInButton({ dark = false }: { dark?: boolean }) {
   if (dark) {
     return (
       <button
@@ -53,106 +54,89 @@ function SignInButton({ dark = false }: { dark?: boolean }) {
   )
 }
 
-// Export so login page can reuse
-export { SignInButton }
-
-function InboxPanel() {
-  return (
-    <div className="rounded-2xl border border-white/10 bg-white/3 overflow-hidden shadow-2xl shadow-black/40 backdrop-blur-sm">
-      {/* Panel header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-white/6">
-        <div className="flex items-center gap-2">
-          <span className="text-xs font-semibold text-white/70">Inbox</span>
-          <span className="rounded-full bg-blue-500/20 px-1.5 py-0.5 text-[10px] font-mono font-medium text-blue-400">
-            {HERO_EMAILS.length}
-          </span>
-        </div>
-        <MoreHorizontal className="size-4 text-white/30" />
-      </div>
-
-      {/* Email rows */}
-      <div>
-        {HERO_EMAILS.map((email) => (
-          <EmailCard key={email.id} {...email} variant="inbox" />
-        ))}
-      </div>
-
-      {/* Bottom glow */}
-      <div className="h-12 bg-linear-to-t from-[#0A0A0B] to-transparent" />
-    </div>
-  )
-}
-
 export default function Hero() {
+  const sectionRef = useRef<HTMLElement>(null)
+  const { scrollYProgress } = useScroll({
+    target: sectionRef,
+    offset: ["start start", "end start"],
+  })
+
   return (
-    <section className="relative min-h-screen overflow-hidden bg-[#0A0A0B] text-white">
+    <section
+      ref={sectionRef}
+      className="relative min-h-[200vh] bg-[#0A0A0B] text-white"
+    >
       <GrainOverlay />
       <MouseGlow />
 
-      {/* Subtle radial gradient behind text */}
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-0 z-0"
-        style={{
-          background:
-            "radial-gradient(ellipse 80% 60% at 20% 50%, rgba(99,102,241,0.08) 0%, transparent 60%)",
-        }}
-      />
+      {/* Sticky viewport wrapper — content stays in view while outer scrolls */}
+      <div className="sticky top-0 h-screen">
+        {/* Radial ambient behind text */}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 z-0"
+          style={{
+            background:
+              "radial-gradient(ellipse 80% 60% at 20% 50%, rgba(99,102,241,0.08) 0%, transparent 60%)",
+          }}
+        />
 
-      <div className="relative z-10 mx-auto max-w-7xl px-6 lg:px-8 pt-36 pb-24 lg:pt-44">
-        <div className="grid lg:grid-cols-2 gap-16 items-center">
-          {/* Left — text */}
-          <div className="flex flex-col items-start">
-            {/* Eyebrow badge */}
-            <span className="mb-6 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/6 px-3 py-1 text-xs text-white/60">
-              <span className="size-1.5 rounded-full bg-emerald-400 animate-pulse" />
-              Currently in testing · invite only
-            </span>
+        {/* Main content grid */}
+        <div className="relative z-10 mx-auto max-w-7xl px-6 lg:px-8 h-full flex items-center">
+          <div className="grid lg:grid-cols-2 gap-16 items-center w-full pt-16">
+            {/* Left — text */}
+            <div className="flex flex-col items-start">
+              <span className="mb-6 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/6 px-3 py-1 text-xs text-white/60">
+                <span className="size-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                Currently in testing · invite only
+              </span>
 
-            <h1
-              className="font-semibold tracking-[-0.04em] leading-[0.95] text-white"
-              style={{ fontSize: "clamp(48px, 7vw, 112px)" }}
-            >
-              {LANDING_COPY.hero.h1}
-            </h1>
-
-            <p className="mt-7 text-lg leading-relaxed text-white/55 max-w-lg">
-              {LANDING_COPY.hero.sub}
-            </p>
-
-            <div className="mt-10 flex flex-wrap items-center gap-4">
-              <SignInButton dark />
-              <a
-                href="#how-it-works"
-                className="inline-flex items-center gap-1.5 text-sm text-white/50 hover:text-white/80 transition-colors"
+              <h1
+                className="font-semibold tracking-[-0.04em] leading-[0.95] text-white"
+                style={{ fontSize: "clamp(48px, 7vw, 112px)" }}
               >
-                {LANDING_COPY.hero.secondaryCta}
-                <ArrowRight className="size-3.5" />
-              </a>
+                {LANDING_COPY.hero.h1}
+              </h1>
+
+              <p className="mt-7 text-lg leading-relaxed text-white/55 max-w-lg">
+                {LANDING_COPY.hero.sub}
+              </p>
+
+              <div className="mt-10 flex flex-wrap items-center gap-4">
+                <SignInButton dark />
+                <a
+                  href="#how-it-works"
+                  className="inline-flex items-center gap-1.5 text-sm text-white/50 hover:text-white/80 transition-colors"
+                >
+                  {LANDING_COPY.hero.secondaryCta}
+                  <ArrowRight className="size-3.5" />
+                </a>
+              </div>
+
+              <p className="mt-6 text-xs text-white/25">
+                No credit card. No paid tier.
+              </p>
             </div>
 
-            {/* Micro trust line */}
-            <p className="mt-6 text-xs text-white/25">
-              No credit card. No paid tier.
-            </p>
-          </div>
-
-          {/* Right — inbox panel (animated in Task 3) */}
-          <div className="hidden lg:block">
-            <InboxPanel />
+            {/* Right — morph panel (desktop only) */}
+            <div className="hidden lg:flex items-center justify-center">
+              <div className="w-full max-w-md">
+                <HeroMorph scrollYProgress={scrollYProgress} />
+              </div>
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* Bottom fade into light body */}
-      <div
-        aria-hidden
-        className="pointer-events-none absolute bottom-0 left-0 right-0 h-32"
-        style={{
-          background:
-            "linear-gradient(to bottom, transparent, var(--color-background))",
-        }}
-      />
+        {/* Bottom fade into light body */}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute bottom-0 left-0 right-0 h-32"
+          style={{
+            background:
+              "linear-gradient(to bottom, transparent, var(--color-background))",
+          }}
+        />
+      </div>
     </section>
   )
 }
