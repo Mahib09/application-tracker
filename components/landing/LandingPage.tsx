@@ -7,6 +7,7 @@ import ProblemStatement from "./ProblemStatement"
 import HowItWorks from "./HowItWorks"
 import FeatureSection from "./FeatureSection"
 import PrivacyDeepDive from "./PrivacyDeepDive"
+import NotesFromBuild from "./NotesFromBuild"
 
 export default function LandingPage() {
   return (
@@ -26,7 +27,8 @@ export default function LandingPage() {
         <HowItWorks />
         <FeatureSection />
         <PrivacyDeepDive />
-        {/* NotesFromBuild, FAQSection, FinalCTA, LandingFooter */}
+        <NotesFromBuild />
+        {/* FAQSection, FinalCTA, LandingFooter */}
       </main>
     </div>
   )
