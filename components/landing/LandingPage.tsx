@@ -8,6 +8,9 @@ import HowItWorks from "./HowItWorks"
 import FeatureSection from "./FeatureSection"
 import PrivacyDeepDive from "./PrivacyDeepDive"
 import NotesFromBuild from "./NotesFromBuild"
+import FAQSection from "./FAQSection"
+import FinalCTA from "./FinalCTA"
+import LandingFooter from "./LandingFooter"
 
 export default function LandingPage() {
   return (
@@ -28,8 +31,10 @@ export default function LandingPage() {
         <FeatureSection />
         <PrivacyDeepDive />
         <NotesFromBuild />
-        {/* FAQSection, FinalCTA, LandingFooter */}
+        <FAQSection />
+        <FinalCTA />
       </main>
+      <LandingFooter />
     </div>
   )
 }
