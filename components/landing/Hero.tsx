@@ -1,12 +1,12 @@
-"use client"
-import { useRef } from "react"
-import { useScroll, motion, useReducedMotion } from "motion/react"
-import { signIn } from "next-auth/react"
-import { ArrowRight } from "lucide-react"
-import GrainOverlay from "./GrainOverlay"
-import MouseGlow from "./MouseGlow"
-import HeroMorph from "./HeroMorph"
-import { LANDING_COPY } from "@/lib/landing/content"
+"use client";
+import { useRef } from "react";
+import { useScroll, motion, useReducedMotion } from "motion/react";
+import { signIn } from "next-auth/react";
+import { ArrowRight } from "lucide-react";
+import GrainOverlay from "./GrainOverlay";
+import MouseGlow from "./MouseGlow";
+import HeroMorph from "./HeroMorph";
+import { LANDING_COPY } from "@/lib/landing/content";
 
 function GoogleIcon() {
   return (
@@ -28,7 +28,7 @@ function GoogleIcon() {
         fill="#EA4335"
       />
     </svg>
-  )
+  );
 }
 
 export function SignInButton({ dark = false }: { dark?: boolean }) {
@@ -41,7 +41,7 @@ export function SignInButton({ dark = false }: { dark?: boolean }) {
         <GoogleIcon />
         {LANDING_COPY.hero.cta}
       </button>
-    )
+    );
   }
   return (
     <button
@@ -51,18 +51,18 @@ export function SignInButton({ dark = false }: { dark?: boolean }) {
       <GoogleIcon />
       {LANDING_COPY.hero.cta}
     </button>
-  )
+  );
 }
 
-const EXPO_OUT = [0.16, 1, 0.3, 1] as [number, number, number, number]
+const EXPO_OUT = [0.16, 1, 0.3, 1] as [number, number, number, number];
 
 export default function Hero() {
-  const reduced = useReducedMotion()
-  const sectionRef = useRef<HTMLElement>(null)
+  const reduced = useReducedMotion();
+  const sectionRef = useRef<HTMLElement>(null);
   const { scrollYProgress } = useScroll({
     target: sectionRef,
     offset: ["start start", "end start"],
-  })
+  });
 
   return (
     <section
@@ -104,7 +104,7 @@ export default function Hero() {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.65, ease: EXPO_OUT, delay: 0.1 }}
                 className="font-semibold tracking-[-0.04em] leading-[0.95] text-white"
-                style={{ fontSize: "clamp(48px, 7vw, 112px)" }}
+                style={{ fontSize: "clamp(48px, 7vw, 100px)" }}
               >
                 {LANDING_COPY.hero.h1}
               </motion.h1>
@@ -154,15 +154,15 @@ export default function Hero() {
         </div>
 
         {/* Bottom fade into light body */}
-        <div
+        {/* <div
           aria-hidden
           className="pointer-events-none absolute bottom-0 left-0 right-0 h-32"
           style={{
             background:
               "linear-gradient(to bottom, transparent, var(--color-background))",
           }}
-        />
+        /> */}
       </div>
     </section>
-  )
+  );
 }

@@ -29,14 +29,14 @@ export default function LandingNav() {
       <div
         className={`flex items-center justify-between rounded-2xl px-5 py-3 backdrop-blur-md transition-all duration-300 ${
           scrolled
-            ? "bg-background/80 border border-border shadow-sm"
+            ? "bg-[#0A0A0B]/80 border border-white/10 shadow-sm"
             : "bg-transparent"
         }`}
       >
-        {/* Wordmark */}
+        {/* Wordmark — always white: nav floats over always-dark hero */}
         <Link
           href="/"
-          className="text-base font-semibold tracking-tight text-foreground"
+          className="text-base font-semibold tracking-tight text-white"
         >
           Paila
         </Link>
@@ -47,17 +47,17 @@ export default function LandingNav() {
             <a
               key={href}
               href={href}
-              className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+              className="text-sm text-white/50 hover:text-white transition-colors"
             >
               {label}
             </a>
           ))}
         </div>
 
-        {/* CTA */}
+        {/* CTA — white pill, readable on dark hero in any theme */}
         <Link
           href="/login"
-          className="rounded-lg bg-foreground px-4 py-2 text-sm font-medium text-background hover:opacity-90 transition-opacity"
+          className="rounded-lg bg-white px-4 py-2 text-sm font-medium text-gray-900 hover:bg-white/90 transition-opacity"
         >
           Sign in
         </Link>
