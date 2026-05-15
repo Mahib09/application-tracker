@@ -1,7 +1,7 @@
 "use client"
 import { useState } from "react"
 import {
-  AreaChart, Area, XAxis, Tooltip, ResponsiveContainer,
+  AreaChart, Area, XAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from "recharts"
 import { STATUS_COLORS } from "@/lib/constants"
 import { applicationStatus } from "@/app/generated/prisma/enums"
@@ -54,7 +54,7 @@ const TOOLTIP_STYLE: React.CSSProperties = {
   borderRadius: 8,
   fontSize: 11,
   color: "var(--color-foreground)",
-  boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
+  boxShadow: "none",
 }
 
 // ─── small primitives ─────────────────────────────────────────────────────────
@@ -86,16 +86,16 @@ function Stat({
   sub?: string
 }) {
   return (
-    <div className="rounded-xl border border-border bg-card px-5 py-5">
+    <div className="rounded-lg border border-border bg-card px-5 py-5">
       <div className="flex items-center justify-between min-h-4">
-        <p className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground">
+        <p className="text-[11px] font-medium tracking-tight text-muted-foreground">
           {label}
         </p>
         {delta && <DeltaInline {...delta} />}
       </div>
       <p
-        className="mt-4 font-semibold text-foreground tracking-tight tabular-nums"
-        style={{ fontSize: "clamp(32px, 3vw, 44px)", fontVariantNumeric: "tabular-nums" }}
+        className="mt-4 font-medium text-foreground tracking-tight tabular-nums"
+        style={{ fontSize: "clamp(28px, 3vw, 40px)", fontVariantNumeric: "tabular-nums" }}
       >
         {value}
       </p>
@@ -112,14 +112,14 @@ function RangeSwitcher({
   onChange: (v: Range) => void
 }) {
   return (
-    <div className="inline-flex rounded-lg border border-border bg-muted/40 p-0.5">
+    <div className="inline-flex rounded-md border border-border bg-muted/40 p-0.5">
       {([30, 60, 90] as Range[]).map((d) => (
         <button
           key={d}
           onClick={() => onChange(d)}
-          className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${
+          className={`px-3 py-1 text-xs font-medium rounded transition-colors ${
             value === d
-              ? "bg-card text-foreground shadow-xs"
+              ? "bg-card text-foreground"
               : "text-muted-foreground hover:text-foreground"
           }`}
         >
@@ -132,7 +132,7 @@ function RangeSwitcher({
 
 function EmptyState({ message }: { message: string }) {
   return (
-    <div className="flex items-center justify-center py-10 border border-dashed border-border rounded-lg bg-muted/30">
+    <div className="flex items-center justify-center py-10 border border-dashed border-border rounded-md bg-muted/30">
       <p className="text-sm text-muted-foreground">{message}</p>
     </div>
   )
@@ -178,7 +178,7 @@ export default function AnalyticsDashboard({ metrics }: Props) {
       {/* Header */}
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-foreground">
+          <h1 className="text-lg font-semibold tracking-tight text-foreground">
             Analytics
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
@@ -218,7 +218,7 @@ export default function AnalyticsDashboard({ metrics }: Props) {
       </div>
 
       {/* Weekly volume */}
-      <div className="rounded-xl border border-border bg-card px-5 py-5">
+      <div className="rounded-lg border border-border bg-card px-5 py-5">
         <div className="flex items-end justify-between mb-4 gap-4 flex-wrap">
           <div>
             <p className="text-sm font-medium text-foreground">
@@ -245,30 +245,31 @@ export default function AnalyticsDashboard({ metrics }: Props) {
           <div className="h-48">
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={weeklyBuckets} margin={{ top: 4, right: 0, bottom: 0, left: 0 }}>
-                <defs>
-                  <linearGradient id="weeklyArea" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#8B5CF6" stopOpacity={0.4} />
-                    <stop offset="100%" stopColor="#8B5CF6" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
+                <CartesianGrid
+                  vertical={false}
+                  stroke="var(--color-border)"
+                  strokeOpacity={0.6}
+                  strokeDasharray="3 3"
+                />
                 <XAxis
                   dataKey="label"
                   axisLine={false}
                   tickLine={false}
-                  tick={{ fontSize: 10, fill: "currentColor" }}
+                  tick={{ fontSize: 11, fill: "currentColor" }}
                   className="text-muted-foreground"
                   interval={1}
                 />
                 <Tooltip
-                  cursor={{ stroke: "#8B5CF6", strokeWidth: 1, strokeOpacity: 0.3 }}
+                  cursor={{ stroke: "#5e6ad2", strokeWidth: 1, strokeOpacity: 0.3 }}
                   contentStyle={TOOLTIP_STYLE}
                 />
                 <Area
                   type="monotone"
                   dataKey="count"
-                  stroke="#8B5CF6"
-                  strokeWidth={2}
-                  fill="url(#weeklyArea)"
+                  stroke="#5e6ad2"
+                  strokeWidth={1.5}
+                  fill="#5e6ad2"
+                  fillOpacity={0.08}
                 />
               </AreaChart>
             </ResponsiveContainer>
@@ -279,7 +280,7 @@ export default function AnalyticsDashboard({ metrics }: Props) {
       {/* Funnel + Source */}
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
         {/* Pipeline funnel */}
-        <div className="rounded-xl border border-border bg-card px-5 py-5">
+        <div className="rounded-lg border border-border bg-card px-5 py-5">
           <p className="text-sm font-medium text-foreground mb-5">
             Pipeline funnel
           </p>
@@ -291,12 +292,13 @@ export default function AnalyticsDashboard({ metrics }: Props) {
                 const pctOfTotal = funnel.total > 0 ? (value / funnel.total) * 100 : 0
                 const prev = i > 0 ? funnelData[i - 1].value : null
                 const stageConv = prev && prev > 0 ? Math.round((value / prev) * 100) : null
+                const barOpacity = [0.85, 0.55, 0.35][i] ?? 0.35
                 return (
                   <div key={name}>
                     <div className="flex items-baseline justify-between mb-1.5 gap-3">
                       <div className="flex items-center gap-2 min-w-0">
                         <span
-                          className="size-2 rounded-full shrink-0"
+                          className="size-1.5 rounded-full shrink-0"
                           style={{ backgroundColor: fill }}
                         />
                         <span className="text-sm font-medium text-foreground">
@@ -304,7 +306,7 @@ export default function AnalyticsDashboard({ metrics }: Props) {
                         </span>
                         {stageConv != null && (
                           <span className="text-[11px] text-muted-foreground truncate">
-                            → {stageConv}% conversion
+                            → {stageConv}% conv.
                           </span>
                         )}
                       </div>
@@ -315,10 +317,10 @@ export default function AnalyticsDashboard({ metrics }: Props) {
                         </span>
                       </span>
                     </div>
-                    <div className="h-2 rounded-full bg-muted overflow-hidden">
+                    <div className="h-1.5 rounded-full bg-muted overflow-hidden">
                       <div
                         className="h-full rounded-full transition-all duration-500"
-                        style={{ width: `${pctOfTotal}%`, backgroundColor: fill }}
+                        style={{ width: `${pctOfTotal}%`, backgroundColor: "var(--color-foreground)", opacity: barOpacity }}
                       />
                     </div>
                   </div>
@@ -329,7 +331,7 @@ export default function AnalyticsDashboard({ metrics }: Props) {
         </div>
 
         {/* Source breakdown */}
-        <div className="rounded-xl border border-border bg-card px-5 py-5">
+        <div className="rounded-lg border border-border bg-card px-5 py-5">
           <p className="text-sm font-medium text-foreground mb-5">
             Source breakdown
           </p>
@@ -338,17 +340,17 @@ export default function AnalyticsDashboard({ metrics }: Props) {
           ) : (
             <div className="space-y-4">
               {[
-                { label: "Gmail",  value: source.gmail,  color: "#3B82F6" },
-                { label: "Manual", value: source.manual, color: "#8B5CF6" },
-              ].map(({ label, value, color }) => {
+                { label: "Gmail",  value: source.gmail,  color: "var(--color-foreground)",        opacity: 0.80 },
+                { label: "Manual", value: source.manual, color: "var(--color-foreground)", opacity: 0.40 },
+              ].map(({ label, value, color, opacity }) => {
                 const pctOfTotal = source.total > 0 ? (value / source.total) * 100 : 0
                 return (
                   <div key={label}>
                     <div className="flex items-baseline justify-between mb-1.5">
                       <div className="flex items-center gap-2">
                         <span
-                          className="size-2 rounded-full"
-                          style={{ backgroundColor: color }}
+                          className="size-1.5 rounded-full"
+                          style={{ backgroundColor: color, opacity }}
                         />
                         <span className="text-sm font-medium text-foreground">
                           {label}
@@ -361,10 +363,10 @@ export default function AnalyticsDashboard({ metrics }: Props) {
                         </span>
                       </span>
                     </div>
-                    <div className="h-2 rounded-full bg-muted overflow-hidden">
+                    <div className="h-1.5 rounded-full bg-muted overflow-hidden">
                       <div
                         className="h-full rounded-full transition-all duration-500"
-                        style={{ width: `${pctOfTotal}%`, backgroundColor: color }}
+                        style={{ width: `${pctOfTotal}%`, backgroundColor: color, opacity }}
                       />
                     </div>
                   </div>

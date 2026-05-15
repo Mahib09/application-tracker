@@ -138,20 +138,20 @@ export default function ApplicationTable({
     <div className="bg-card overflow-hidden">
       {/* Review items */}
       {reviewItems.length > 0 && (
-        <div className="border-b border-border bg-violet-50/50 dark:bg-violet-950/20">
-          <div className="px-4 py-2 text-xs font-medium text-violet-700 dark:text-violet-300">
+        <div className="border-b border-border bg-primary/4">
+          <div className="px-4 py-2 text-xs font-medium text-primary">
             {reviewItems.length} item{reviewItems.length !== 1 ? "s" : ""} need review
           </div>
           {reviewItems.map((app) => (
             <div
               key={app.id}
-              className="flex items-center justify-between px-4 py-2 border-t border-violet-100 dark:border-violet-900/30 hover:bg-violet-50/80 dark:hover:bg-violet-950/30 transition-colors"
+              className="flex items-center justify-between px-4 py-2 border-t border-primary/10 hover:bg-primary/3 transition-colors"
             >
               <div className="flex items-center gap-3">
                 <span className="font-medium text-sm text-foreground">{app.company}</span>
                 <span className="text-sm text-muted-foreground">{app.roleTitle}</span>
                 {app.confidence != null && (
-                  <span className="text-xs text-violet-600 dark:text-violet-400 tabular-nums">
+                  <span className="text-xs text-primary/70 tabular-nums">
                     {Math.round(app.confidence * 100)}% confidence
                   </span>
                 )}
@@ -184,18 +184,18 @@ export default function ApplicationTable({
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-border text-xs text-muted-foreground">
-              <th className="w-10 px-2 py-2.5" />
-              <th className="text-left px-3 py-2.5 font-medium cursor-pointer select-none" onClick={() => toggleSort("company")}>
+              <th className="w-10 px-2 py-2" />
+              <th className="text-left px-3 py-2 font-medium cursor-pointer select-none" onClick={() => toggleSort("company")}>
                 Company<SortIcon field="company" />
               </th>
-              <th className="text-left px-3 py-2.5 font-medium cursor-pointer select-none" onClick={() => toggleSort("roleTitle")}>
+              <th className="text-left px-3 py-2 font-medium cursor-pointer select-none" onClick={() => toggleSort("roleTitle")}>
                 Role<SortIcon field="roleTitle" />
               </th>
-              <th className="text-left px-3 py-2.5 font-medium">Status</th>
-              <th className="text-left px-3 py-2.5 font-medium cursor-pointer select-none" onClick={() => toggleSort("appliedAt")}>
+              <th className="text-left px-3 py-2 font-medium">Status</th>
+              <th className="text-left px-3 py-2 font-medium cursor-pointer select-none" onClick={() => toggleSort("appliedAt")}>
                 Date Applied<SortIcon field="appliedAt" />
               </th>
-              <th className="hidden lg:table-cell text-left px-3 py-2.5 font-medium cursor-pointer select-none" onClick={() => toggleSort("daysSince")}>
+              <th className="hidden lg:table-cell text-left px-3 py-2 font-medium cursor-pointer select-none" onClick={() => toggleSort("daysSince")}>
                 Days Since<SortIcon field="daysSince" />
               </th>
             </tr>
@@ -245,7 +245,7 @@ export default function ApplicationTable({
                   }}
                 >
                   {/* Checkbox */}
-                  <td className="px-2 py-2.5 text-center">
+                  <td className="px-2 py-2 text-center">
                     <input
                       type="checkbox"
                       checked={isSelected}
@@ -255,37 +255,37 @@ export default function ApplicationTable({
                     />
                   </td>
 
-                  <td className="px-3 py-2.5">
+                  <td className="px-3 py-2">
                     <div className="flex items-center gap-2">
                       <CompanyLogo company={app.company} size={20} />
                       <span className="font-medium text-foreground">{app.company}</span>
                     </div>
                   </td>
-                  <td className="px-3 py-2.5">
+                  <td className="px-3 py-2">
                     <div className="flex flex-col gap-0.5">
                       <span className="text-muted-foreground">{app.roleTitle}</span>
                       {app.tags?.length > 0 && (
                         <div className="flex gap-1 flex-wrap">
                           {app.tags.slice(0, 2).map((t) => (
-                            <span key={t} className="rounded-full bg-muted border border-border px-1.5 py-px text-[10px] text-muted-foreground">{t}</span>
+                            <span key={t} className="rounded bg-muted border border-border px-1.5 py-px text-[11px] text-muted-foreground">{t}</span>
                           ))}
                           {app.tags.length > 2 && (
-                            <span className="rounded-full bg-muted border border-border px-1.5 py-px text-[10px] text-muted-foreground">+{app.tags.length - 2}</span>
+                            <span className="rounded bg-muted border border-border px-1.5 py-px text-[11px] text-muted-foreground">+{app.tags.length - 2}</span>
                           )}
                         </div>
                       )}
                     </div>
                   </td>
-                  <td className="px-3 py-2.5">
+                  <td className="px-3 py-2">
                     <span className="flex items-center gap-1.5">
                       <span className="size-2 rounded-full shrink-0" style={{ backgroundColor: STATUS_COLORS[status] }} />
                       <span className="text-muted-foreground">{STATUS_CONFIG[status].label}</span>
                     </span>
                   </td>
-                  <td className="px-3 py-2.5 text-muted-foreground" title={app.appliedAt ? new Date(app.appliedAt).toLocaleDateString() : undefined}>
+                  <td className="px-3 py-2 text-muted-foreground" title={app.appliedAt ? new Date(app.appliedAt).toLocaleDateString() : undefined}>
                     {relativeDate(app.appliedAt)}
                   </td>
-                  <td className={`hidden lg:table-cell px-3 py-2.5 tabular-nums ${ghostWarning ? "text-amber-600 dark:text-amber-400 font-medium" : "text-muted-foreground"}`}>
+                  <td className={`hidden lg:table-cell px-3 py-2 tabular-nums ${ghostWarning ? "text-amber-600 dark:text-amber-400 font-medium" : "text-muted-foreground"}`}>
                     {days > 0 ? `${days}d` : "—"}
                   </td>
                 </tr>

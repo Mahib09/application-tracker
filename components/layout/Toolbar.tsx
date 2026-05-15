@@ -33,22 +33,22 @@ export default function Toolbar({ lastSyncedAt, cooldownMs }: ToolbarProps) {
 
   return (
     <div className="flex items-center justify-between py-3">
-      <div className="flex gap-2 items-center rounded-xl  p-0.5">
+      <div className="flex gap-1 items-center">
         <Button
           variant={view === "table" ? "secondary" : "ghost"}
-          // size="icon-xs"
+          size="sm"
           aria-label="Table view"
           onClick={() => setView("table")}
         >
-          <LayoutList className="size-3.5" /> Table
+          <LayoutList className="size-3.5" strokeWidth={1.5} /> Table
         </Button>
         <Button
           variant={view === "kanban" ? "secondary" : "ghost"}
-          // size="icon-xs"
+          size="sm"
           aria-label="Kanban view"
           onClick={() => setView("kanban")}
         >
-          <LayoutGrid className="size-3.5" /> Board
+          <LayoutGrid className="size-3.5" strokeWidth={1.5} /> Board
         </Button>
       </div>
 

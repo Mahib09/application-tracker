@@ -47,10 +47,10 @@ export default function NavSidebar() {
     .toUpperCase() ?? "?"
 
   const sidebarContent = (
-    <div className="flex flex-col h-full w-60 bg-card border-r border-border">
+    <div className="flex flex-col h-full w-55 bg-card border-r border-border">
       {/* Logo */}
       <div className="px-4 py-4">
-        <span className="text-base font-semibold text-foreground tracking-tight">Paila</span>
+        <span className="text-sm font-semibold text-foreground tracking-tight">Paila</span>
       </div>
 
       {/* Nav links */}
@@ -62,13 +62,13 @@ export default function NavSidebar() {
               key={href}
               href={href}
               onClick={() => { if (isMobile) close() }}
-              className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors ${
+              className={`relative flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors ${
                 active
-                  ? "bg-muted font-medium text-foreground"
-                  : "text-muted-foreground hover:bg-muted/60 hover:text-foreground"
+                  ? "font-medium text-foreground before:absolute before:inset-y-1 before:left-0 before:w-0.5 before:rounded-full before:bg-primary"
+                  : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
               }`}
             >
-              <Icon className="size-4" />
+              <Icon className="size-4" strokeWidth={1.5} />
               {label}
             </Link>
           )
@@ -104,11 +104,11 @@ export default function NavSidebar() {
             </div>
             <button
               onClick={() => signOut({ callbackUrl: "/login" })}
-              className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+              className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors shrink-0"
               aria-label="Sign out"
               title="Sign out"
             >
-              <LogOut className="size-3.5" />
+              <LogOut className="size-3.5" strokeWidth={1.5} />
             </button>
           </div>
         </div>
@@ -153,7 +153,7 @@ export default function NavSidebar() {
         <motion.aside
           className="shrink-0 overflow-hidden h-full"
           initial={reduced ? { opacity: 0 } : { width: 0 }}
-          animate={reduced ? { opacity: 1 } : { width: 240 }}
+          animate={reduced ? { opacity: 1 } : { width: 220 }}
           exit={reduced ? { opacity: 0 } : { width: 0 }}
           transition={reduced ? { duration: 0 } : spring}
         >

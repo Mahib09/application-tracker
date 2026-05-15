@@ -95,19 +95,20 @@ export default function WeeklySummary({ applications }: Props) {
                 dataKey="label"
                 axisLine={false}
                 tickLine={false}
-                tick={{ fontSize: 10, fill: "currentColor" }}
+                tick={{ fontSize: 11, fill: "currentColor" }}
                 className="text-muted-foreground"
               />
               <Tooltip
                 cursor={{ fill: "rgba(0,0,0,0.04)" }}
                 contentStyle={{
-                  background: "hsl(var(--card))",
-                  border: "1px solid hsl(var(--border))",
+                  background: "var(--color-card)",
+                  border: "1px solid var(--color-border)",
                   borderRadius: 6,
                   fontSize: 11,
+                  color: "var(--color-foreground)",
                 }}
               />
-              <Bar dataKey="count" fill="#3B82F6" radius={[2, 2, 0, 0]} />
+              <Bar dataKey="count" fill="#5e6ad2" radius={[2, 2, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>

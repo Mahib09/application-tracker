@@ -39,7 +39,7 @@ export default function LoginPage() {
 
       {/* Card */}
       <div className="relative z-10 w-full max-w-md px-6">
-        <div className="rounded-2xl border border-border bg-card px-10 py-10 shadow-sm">
+        <div className="rounded-lg border border-border bg-card px-10 py-10">
           {/* Wordmark */}
           <Link
             href="/"
@@ -49,7 +49,7 @@ export default function LoginPage() {
           </Link>
 
           {/* Heading */}
-          <h1 className="text-2xl font-semibold tracking-tight text-foreground">
+          <h1 className="text-xl font-semibold tracking-tight text-foreground">
             Welcome back
           </h1>
           <p className="mt-2 text-sm text-muted-foreground leading-relaxed">
@@ -59,7 +59,7 @@ export default function LoginPage() {
           {/* CTA */}
           <button
             onClick={() => signIn("google", { callbackUrl: "/dashboard" })}
-            className="mt-8 w-full inline-flex items-center justify-center gap-2.5 rounded-xl bg-foreground px-6 py-3.5 text-sm font-semibold text-background hover:opacity-90 transition-all active:scale-[0.98]"
+            className="mt-8 w-full inline-flex items-center justify-center gap-2.5 rounded-md bg-foreground px-6 py-3 text-sm font-medium text-background hover:opacity-90 transition-all active:scale-[0.98]"
           >
             <GoogleIcon />
             Sign in with Google

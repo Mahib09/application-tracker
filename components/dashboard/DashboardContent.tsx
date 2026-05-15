@@ -242,7 +242,7 @@ export default function DashboardContent({
 
   return (
     <>
-    <div className="flex flex-col h-full rounded-lg border border-border overflow-hidden">
+    <div className="flex flex-col h-full rounded-md border border-border overflow-hidden">
       {/* Unified header spanning both panels */}
       <UnifiedHeader
         filterStatus={filterStatus}

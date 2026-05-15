@@ -41,20 +41,19 @@ export default function KanbanColumn({
         const id = e.dataTransfer.getData("text/plain")
         if (id) onDropCard(id, status)
       }}
-      className={`flex min-h-[60vh] w-[80vw] md:w-64 shrink-0 snap-center md:snap-align-none flex-col rounded-lg border bg-muted/30 ${
-        over ? "border-foreground/40 bg-muted/60" : "border-border"
+      className={`flex min-h-[60vh] w-[80vw] md:w-64 shrink-0 snap-center md:snap-align-none flex-col rounded-md border bg-muted/20 ${
+        over ? "border-foreground/40 bg-muted/50" : "border-border"
       }`}
     >
       <div
-        className="rounded-t-lg border-b border-border px-3 py-2"
-        style={{ borderTop: `2px solid ${color}` }}
+        className="rounded-t-md border-b border-border px-3 py-2.5"
       >
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <span className="size-2 rounded-full" style={{ backgroundColor: color }} />
-            <span className="text-xs font-medium text-foreground">{label}</span>
+            <span className="size-1.5 rounded-full shrink-0" style={{ backgroundColor: color }} />
+            <span className="text-xs font-medium text-muted-foreground">{label}</span>
           </div>
-          <span className="text-xs tabular-nums text-muted-foreground">{applications.length}</span>
+          <span className="font-mono text-xs tabular-nums text-muted-foreground">{applications.length}</span>
         </div>
       </div>
       <div className="flex-1 space-y-2 overflow-y-auto p-2">

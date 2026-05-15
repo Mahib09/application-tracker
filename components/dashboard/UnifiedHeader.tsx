@@ -37,7 +37,7 @@ export default function UnifiedHeader({ filterStatus, onFilterChange, allTags = 
           {filterTag && (
             <button
               onClick={() => onFilterTag(null)}
-              className="rounded-full px-2.5 py-1 text-xs font-medium bg-foreground text-background transition-colors"
+              className="rounded-md px-2.5 py-1 text-xs font-medium bg-foreground text-background transition-colors"
             >
               {filterTag} ×
             </button>
@@ -46,7 +46,7 @@ export default function UnifiedHeader({ filterStatus, onFilterChange, allTags = 
             <select
               value=""
               onChange={(e) => onFilterTag(e.target.value || null)}
-              className="rounded-full bg-muted/60 px-2.5 py-1 text-xs text-muted-foreground border-0 outline-none cursor-pointer hover:bg-muted"
+              className="rounded-md bg-muted/60 px-2.5 py-1 text-xs text-muted-foreground border-0 outline-none cursor-pointer hover:bg-muted"
             >
               <option value="">Filter by tag…</option>
               {allTags.map((t) => (
@@ -64,13 +64,13 @@ function FilterPill({ active, onClick, label, color }: { active: boolean; onClic
   return (
     <button
       onClick={onClick}
-      className={`flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium transition-colors ${
+      className={`flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
         active
           ? "bg-foreground text-background"
           : "bg-muted/60 text-muted-foreground hover:bg-muted"
       }`}
     >
-      {color && <span className="size-2 rounded-full" style={{ backgroundColor: color }} />}
+      {color && <span className="size-2 rounded-md" style={{ backgroundColor: color }} />}
       {label}
     </button>
   )

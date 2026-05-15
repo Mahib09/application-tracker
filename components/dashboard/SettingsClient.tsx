@@ -71,7 +71,7 @@ function Section({
       <div className="flex items-start gap-3 mb-3">
         <IconChip tone={tone ?? "neutral"}>{icon}</IconChip>
         <div className="flex-1 min-w-0">
-          <h2 className="text-base font-semibold text-foreground leading-tight">
+          <h2 className="text-sm font-medium text-foreground leading-tight">
             {title}
           </h2>
           {description && (
@@ -153,7 +153,7 @@ export default function SettingsClient({
   return (
     <div className="py-6 max-w-3xl mx-auto space-y-5">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight text-foreground">
+        <h1 className="text-lg font-semibold tracking-tight text-foreground">
           Settings
         </h1>
         <p className="text-sm text-muted-foreground mt-1">
